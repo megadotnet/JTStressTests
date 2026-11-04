@@ -1,6 +1,7 @@
 namespace JTStressTests.Models;
 
-public sealed class CommandLineOptions
+/// <inheritdoc cref="JTStressTests.Cli.CommandLineOptions"/>
+public class CommandLineOptions
 {
     public int Concurrency { get; set; } = 500;
     public int Duration { get; set; } = 60;
@@ -11,4 +12,44 @@ public sealed class CommandLineOptions
     public Dictionary<string, string> Headers { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public bool ShowHelp { get; set; }
     public bool HasError { get; set; }
+
+    public static implicit operator JTStressTests.Cli.CommandLineOptions(CommandLineOptions legacy)
+    {
+        var options = new JTStressTests.Cli.CommandLineOptions
+        {
+            Concurrency = legacy.Concurrency,
+            Duration = legacy.Duration,
+            OutputPath = legacy.OutputPath,
+            Method = legacy.Method,
+            Url = legacy.Url,
+            Body = legacy.Body,
+            ShowHelp = legacy.ShowHelp,
+            HasError = legacy.HasError
+        };
+        foreach (var kvp in legacy.Headers)
+        {
+            options.Headers[kvp.Key] = kvp.Value;
+        }
+        return options;
+    }
+
+    public static implicit operator CommandLineOptions(JTStressTests.Cli.CommandLineOptions modern)
+    {
+        var options = new CommandLineOptions
+        {
+            Concurrency = modern.Concurrency,
+            Duration = modern.Duration,
+            OutputPath = modern.OutputPath,
+            Method = modern.Method,
+            Url = modern.Url,
+            Body = modern.Body,
+            ShowHelp = modern.ShowHelp,
+            HasError = modern.HasError
+        };
+        foreach (var kvp in modern.Headers)
+        {
+            options.Headers[kvp.Key] = kvp.Value;
+        }
+        return options;
+    }
 }
