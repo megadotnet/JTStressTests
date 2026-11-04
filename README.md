@@ -37,8 +37,21 @@
 ```text
 .
 ├── JTStressTests.sln          # Visual Studio / .NET 解决方案文件
-├── JTStressTests.csproj       # 项目工程文件 (指定 net8.0、隐式引用及 appsettings 拷贝规则)
-├── Program.cs                 # 核心代码入口 (参数解析、配置加载、压测执行引擎、报告生成与导出)
+├── JTStressTests.csproj       # 项目主工程文件 (net8.0)
+├── JTStressTests.Tests/       # 单元测试工程 (MSTest, Moq, Coverlet)
+│   ├── JTStressTests.Tests.csproj
+│   ├── CommandLineParserTests.cs
+│   ├── ConfigLoaderTests.cs
+│   ├── RequestBuilderTests.cs
+│   ├── StatisticsCalculatorTests.cs
+│   ├── CsvExporterTests.cs
+│   ├── StressTestEngineTests.cs
+│   └── ModelTests.cs
+├── Models/                    # 核心数据模型 (AppConfig, RequestResult, etc.)
+├── Services/                  # 业务模块 (CommandLineParser, ConfigLoader, etc.)
+├── Program.cs                 # 程序入口
+├── run-tests.sh               # 单测与覆盖率自动化一键执行脚本
+├── TESTING.md                 # 单元测试与测试覆盖率详细指引文档
 ├── appsettings.json           # 默认压测目标与请求头配置文件
 ├── .gitignore                 # Git 忽略配置
 └── README.md                  # 项目说明文档
@@ -128,7 +141,17 @@
    dotnet build
    ```
 
-2. **快速直接运行（使用 appsettings.json 默认配置）**：
+2. **执行单元测试与代码覆盖率检查**：
+   ```bash
+   # 运行一键测试脚本 (生成测试报告与覆盖率文件至 ./TestResults)
+   ./run-tests.sh
+
+   # 或通过 dotnet CLI 运行
+   dotnet test
+   ```
+   详细测试规范与覆盖率说明参见 [TESTING.md](./TESTING.md)。
+
+3. **快速直接运行（使用 appsettings.json 默认配置）**：
    ```bash
    dotnet run
    ```
