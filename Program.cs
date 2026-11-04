@@ -1,26 +1,40 @@
 using System.Text.Json;
-using JTStressTests.Models;
-using JTStressTests.Services;
+using JTStressTests.Cli;
+using JTStressTests.Configuration;
+using JTStressTests.Engine;
+using JTStressTests.Export;
+using JTStressTests.Http;
+using JTStressTests.Statistics;
 
 // =============================================================
 // JTStressTests - HTTP 并发压力测试工具
+// 基于 SOLID 原则与依赖倒置/策略模式/工厂模式系统性重构
 // 本工具仅用于对已获得授权的系统进行性能测试。
 // =============================================================
 
 Console.WriteLine("本工具仅用于对已获得授权的系统进行性能测试。");
 
+// ---------------- 依赖与组件初始化 ----------------
+ICommandLineParser cliParser = CommandLineParser.Default;
+IConfigLoader configLoader = ConfigLoader.Default;
+IHttpClientFactory clientFactory = SocketsHttpClientFactory.Default;
+IRequestBuilder requestBuilder = RequestBuilder.Default;
+IStatisticsCalculator statsCalculator = StatisticsCalculator.Default;
+IReportPrinter reportPrinter = ConsoleReportPrinter.Default;
+IResultExporter resultExporter = CsvResultExporter.Default;
+
 // ---------------- 命令行参数解析 ----------------
-CommandLineOptions options = CommandLineParser.Parse(args);
+CommandLineOptions options = cliParser.Parse(args);
 
 if (options.ShowHelp)
 {
-    CommandLineParser.PrintUsage();
+    cliParser.PrintUsage();
     return 0;
 }
 
 if (options.HasError)
 {
-    CommandLineParser.PrintUsage();
+    cliParser.PrintUsage();
     return 2;
 }
 
@@ -35,7 +49,7 @@ if (!File.Exists(baseConfigPath))
 AppConfig? config;
 try
 {
-    config = ConfigLoader.LoadConfig(baseConfigPath);
+    config = configLoader.LoadConfig(baseConfigPath);
 }
 catch (JsonException ex)
 {
@@ -52,10 +66,10 @@ if (!string.IsNullOrWhiteSpace(environment))
     {
         try
         {
-            AppConfig? envConfig = ConfigLoader.LoadConfig(envConfigPath);
+            AppConfig? envConfig = configLoader.LoadConfig(envConfigPath);
             if (envConfig != null)
             {
-                config = ConfigLoader.Merge(config, envConfig);
+                config = configLoader.Merge(config, envConfig);
             }
         }
         catch (JsonException ex)
@@ -67,7 +81,7 @@ if (!string.IsNullOrWhiteSpace(environment))
 }
 
 // ---------------- 合并配置（命令行优先） ----------------
-var (targetUrl, requestBody, requestContentType, requestHeaders) = ConfigLoader.ResolveEffectiveConfig(config, options);
+var (targetUrl, requestBody, requestContentType, requestHeaders) = configLoader.ResolveEffectiveConfig(config, options);
 
 if (string.IsNullOrWhiteSpace(targetUrl))
 {
@@ -76,8 +90,8 @@ if (string.IsNullOrWhiteSpace(targetUrl))
 }
 
 // ---------------- HttpClient 与引擎配置 ----------------
-using var http = StressTestEngine.CreateDefaultHttpClient(options.Concurrency);
-var engine = new StressTestEngine(http);
+using var http = clientFactory.CreateClient(options.Concurrency);
+IStressTestEngine engine = new StressTestEngine(http, requestBuilder);
 
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (sender, e) =>
@@ -97,13 +111,13 @@ var (results, elapsedSeconds) = await engine.RunAsync(
     cts.Token);
 
 // ---------------- 统计与报告 ----------------
-var report = StatisticsCalculator.GenerateReport(results, elapsedSeconds);
-StatisticsCalculator.PrintReport(report);
+var report = statsCalculator.GenerateReport(results, elapsedSeconds);
+reportPrinter.Print(report);
 
-// ---------------- CSV 导出 ----------------
+// ---------------- 结果导出 ----------------
 if (!string.IsNullOrEmpty(options.OutputPath))
 {
-    CsvExporter.ExportToFile(options.OutputPath, results);
+    resultExporter.ExportToFile(options.OutputPath, results);
     Console.WriteLine();
     Console.WriteLine($"CSV 已导出: {options.OutputPath}");
 }

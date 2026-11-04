@@ -34,6 +34,8 @@
 
 ## 3. 目录结构
 
+系统已按单一职责原则与面向对象设计（SOLID）重构为领域模块化结构，详细架构与接口规范参见 [REFACTORING.md](./REFACTORING.md)：
+
 ```text
 .
 ├── JTStressTests.sln          # Visual Studio / .NET 解决方案文件
@@ -46,12 +48,20 @@
 │   ├── StatisticsCalculatorTests.cs
 │   ├── CsvExporterTests.cs
 │   ├── StressTestEngineTests.cs
-│   └── ModelTests.cs
-├── Models/                    # 核心数据模型 (AppConfig, RequestResult, etc.)
-├── Services/                  # 业务模块 (CommandLineParser, ConfigLoader, etc.)
-├── Program.cs                 # 程序入口
+│   ├── ModelTests.cs
+│   └── RefactoredArchitectureTests.cs
+├── Cli/                       # 命令行交互领域模块 (接口、实现与专属模型)
+├── Configuration/             # 配置管理领域模块 (接口、实现与专属模型)
+├── Http/                      # HTTP 传输与请求构建 (构建者模式与工厂模式)
+├── Engine/                    # 并发压测引擎领域模块 (接口与核心引擎实现)
+├── Statistics/                # 统计计算与报告输出 (策略模式打印器)
+├── Export/                    # 结果持久化导出模块 (策略模式导出器)
+├── Services/                  # [兼容垫片] 保持历史服务调用 API 100% 兼容
+├── Models/                    # [兼容垫片] 保持历史数据模型定义 100% 兼容
+├── Program.cs                 # 程序入口 (依赖倒置与组件协同)
 ├── run-tests.sh               # 单测与覆盖率自动化一键执行脚本
 ├── TESTING.md                 # 单元测试与测试覆盖率详细指引文档
+├── REFACTORING.md             # 系统重构架构、设计模式与接口定义详细文档
 ├── appsettings.json           # 默认压测目标与请求头配置文件
 ├── .gitignore                 # Git 忽略配置
 └── README.md                  # 项目说明文档
