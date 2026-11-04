@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jt-stress-tests-config
+  labels:
+    app.kubernetes.io/name: jt-stress-tests
+    app.kubernetes.io/component: load-testing-engine
+    app.kubernetes.io/part-of: jt-stress-tests-system
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  PORT: "8080"
+  WEB_SERVER: "true"
+  CONCURRENCY_DEFAULT: "200"
+  DURATION_DEFAULT: "60"

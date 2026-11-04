@@ -1,0 +1,53 @@
+services:
+  # 主压测 Web 服务节点
+  jt-stress-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jt-stress-tests:latest
+    container_name: jt-stress-tests-service
+    restart: unless-stopped
+    user: "10001:10001"
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - WEB_SERVER=true
+      - PORT=8080
+      - CONCURRENCY=100
+      - DURATION=30
+      # 示例敏感配置，生产环境推荐通过 .env 或外部密钥系统注入，禁止硬编码
+      - API_AUTH_TOKEN=${API_AUTH_TOKEN:-sample-dev-token}
+    volumes:
+      - ./output:/app/output:rw
+    networks:
+      - jt-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    depends_on:
+      mock-target:
+        condition: service_healthy
+
+  # 本地模拟被测 HTTP API 服务（提供回显与探活接口）
+  mock-target:
+    image: nginx:alpine
+    container_name: jt-mock-target
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    networks:
+      - jt-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:80/ || exit 1"]
+      interval: 5s
+      timeout: 2s
+      retries: 3
+      start_period: 2s
+
+networks:
+  jt-network:
+    driver: bridge

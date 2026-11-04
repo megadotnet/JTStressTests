@@ -168,10 +168,16 @@ cd .\publish-win
 
 #### Docker 独立镜像运行
 ```bash
-# 1. 编译镜像
-docker build -t jt-stress-tests:latest .
+# 1. 多阶段轻量化镜像构建（遵循 OCI 标准）
+docker build -t jt-stress-tests:1.0.0 -t jt-stress-tests:latest .
 
-# 2. 挂载本地 output 目录并执行压测
+# 2. 以云原生 Web 服务守护进程模式后台运行（非 root 用户 10001，默认监听 8080 端口）
+docker run -d --name jt-stress-service -p 8080:8080 jt-stress-tests:latest
+
+# 健康检查验证
+curl http://127.0.0.1:8080/healthz
+
+# 3. 亦可挂载本地 output 目录执行一次性命令行压测
 docker run --rm \
   -v "$(pwd)/output:/app/output" \
   jt-stress-tests:latest \
@@ -181,10 +187,31 @@ docker run --rm \
   --output /app/output/report.csv
 ```
 
-#### Docker Compose 多节点编排启动
+#### Docker Compose 本地一键编排启动
 ```bash
-# 启动多节点分布式压测集群
-docker compose up --build
+# 一键启动 Web 守护服务及本地模拟被测服务 mock-target
+docker compose up -d
+
+# 检查容器运行状态与健康探针
+docker compose ps
+curl http://127.0.0.1:8080/healthz
+
+# 停止并清理本地开发环境
+docker compose down
+```
+
+#### Kubernetes 企业级云原生编排部署
+仓库在 `k8s/` 目录中提供了完整的云原生部署清单：
+- `deployment.yaml`：遵循云原生安全标准，强制 `runAsNonRoot: true`、`runAsUser: 10001`、只读根文件系统 `readOnlyRootFilesystem: true`、丢弃全部 Linux 特权 Capabilities，配置探针 `livenessProbe`、`readinessProbe`、`startupProbe`，挂载 PVC 与 tmp 卷。
+- `service.yaml`：标准 ClusterIP 服务暴露 8080 端口。
+- `ingress.yaml`：NGINX Ingress 路由配置及 TLS 证书终结支持。
+- `hpa.yaml`：基于 CPU（75%）与内存（80%）的 HorizontalPodAutoscaler 自动水平扩缩容策略。
+- `pvc.yaml`：持久化存储声明 PersistentVolumeClaim，支持测试报告持久落盘。
+- `configmap.yaml` 与 `secret.yaml`：配置与敏感凭据解耦管理，严禁敏感信息硬编码。
+
+通过 Kustomize 一键部署至 Kubernetes 集群：
+```bash
+kubectl apply -k k8s/
 ```
 
 ---
@@ -202,6 +229,8 @@ docker compose up --build
 | `--body` | 字符串 | 优先读取 `appsettings.json` | 请求载荷内容（支持 JSON 文本或表单序列化字符串）。 |
 | `--header` | 字符串 | 优先读取 `appsettings.json` | 自定义请求头，格式为 `Name: Value`，支持多次传入叠加。 |
 | `--output` | 字符串 | 空（不导出） | 压测全量明细结果导出的 CSV 文件目标路径。 |
+| `--server` | 标志 | `false` | 以云原生 Web 服务守护进程模式运行（提供探活与 REST 接口）。 |
+| `--port` | 整数 | `8080` | Web 守护进程监听端口（亦可通过 `PORT` 环境变量注入）。 |
 | `--help`, `-h` | 标志 | `false` | 打印使用帮助和命令行参数说明。 |
 
 ---

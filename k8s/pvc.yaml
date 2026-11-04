@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jt-stress-tests-reports-pvc
+  labels:
+    app.kubernetes.io/name: jt-stress-tests
+    app.kubernetes.io/component: load-testing-engine
+    app.kubernetes.io/part-of: jt-stress-tests-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
