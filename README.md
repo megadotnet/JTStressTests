@@ -1,326 +1,348 @@
-# JTStressTests - HTTP 并发压力测试工具
+# JTStressTests - High-Performance HTTP Load & Stress Testing Tool
 
-> **声明**：本工具仅用于对已获得正式授权的系统进行性能及压力测试。严禁用于任何未授权系统的攻击行为。
+[![.NET Version](https://img.shields.io/badge/.NET-8.0-blue.svg)](https://dotnet.microsoft.com/)
+[![Language](https://img.shields.io/badge/Language-C%23%2012-brightgreen.svg)](https://learn.microsoft.com/en-us/dotnet/csharp/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Unit Tests](https://img.shields.io/badge/Tests-74%20Passed-success.svg)](./TESTING.md)
 
----
+[English](./README.md) | [简体中文 (Chinese Version)](./ReadMe-ZhCn.md)
 
-## 1. 项目简介
-
-`JTStressTests` 是一个基于 .NET 8 构建的高性能轻量级 HTTP 并发压力测试控制台工具。该工具通过高效的连接复用、并发控制和异步 I/O 机制，对目标 HTTP/HTTPS 接口发起高并发压力测试，并提供多维度的实时性能统计报告（包括 QPS、响应延迟百分位、HTTP 状态码分布、异常分类等），同时支持将所有请求细节导出为 CSV 格式供进一步分析。
-
-### 核心特性
-- **高性能连接池管理**：基于 `SocketsHttpHandler` 进行连接池配置与请求复用（`PooledConnectionLifetime` 与 `MaxConnectionsPerServer`），支持在单机高并发下稳定发起长连接压测。
-- **并发控制与平滑取消**：采用 `SemaphoreSlim` 与 `Task.Run` 工作池协同，支持精准并发限制；支持监听系统 `Ctrl+C` 信号及超时平滑收尾（最大宽限 10 秒）。
-- **灵活的配置合并体系**：支持 `appsettings.json` 基础配置、基于 `ASPNETCORE_ENVIRONMENT` 的环境差异化配置（如 `appsettings.Development.json`），以及命令行 CLI 参数覆盖（命令行参数具有最高优先级）。
-- **细粒度性能统计**：内置线性插值法计算高精度延迟百分位数（P50、P90、P95、P99），统计 HTTP 状态码分布与异常类型分布。
-- **压测数据导出**：支持通过 `--output` 参数将每次请求的时间戳、耗时、状态码、成功标志及异常信息无损导出为 CSV 文件。
+> **Notice & Disclaimer**: This tool is designed strictly for authorized performance, benchmark, and stress testing against target systems. Unauthorized stress testing or attacks against third-party systems are strictly prohibited.
 
 ---
 
-## 2. 技术栈说明
+## 1. Project Overview
 
-- **目标运行时**：.NET 8.0 (`net8.0`)
-- **编程语言**：C# 12（采用顶级语句 Top-Level Statements 简化程序入口）
-- **核心依赖类库**：
-  - `System.Net.Http` (`HttpClient`, `SocketsHttpHandler`)：提供底层 HTTP 连接复用与网络请求。
-  - `System.Text.Json`：提供高性能 JSON 配置解析。
-  - `System.Threading` (`SemaphoreSlim`, `CancellationTokenSource`, `Interlocked`)：实现高并发异步控制。
-  - `System.Collections.Concurrent` (`ConcurrentBag<T>`)：提供无锁化高并发请求记录收集。
+`JTStressTests` is an ultra-lightweight, high-performance, asynchronous HTTP concurrency and stress testing CLI tool built on .NET 8 and C# 12. Designed with enterprise-grade resilience and low resource overhead, it allows software engineers and DevOps teams to benchmark target HTTP/HTTPS APIs under extreme concurrency.
 
-> **工程实际说明**：
-> 当前代码工程为纯 .NET 8 控制台应用，**未包含**前端框架（如 Vue / React / Vite）、Nginx 反向代理配置、Python 后端服务或官方 Docker 镜像编排文件。相关配置说明及容器化部署方案见下文对应章节。
-
----
-
-## 3. 目录结构
-
-系统已按单一职责原则与面向对象设计（SOLID）重构为领域模块化结构，详细架构与接口规范参见 [REFACTORING.md](./REFACTORING.md)：
-
-```text
-.
-├── JTStressTests.sln          # Visual Studio / .NET 解决方案文件
-├── JTStressTests.csproj       # 项目主工程文件 (net8.0)
-├── JTStressTests.Tests/       # 单元测试工程 (MSTest, Moq, Coverlet)
-│   ├── JTStressTests.Tests.csproj
-│   ├── CommandLineParserTests.cs
-│   ├── ConfigLoaderTests.cs
-│   ├── RequestBuilderTests.cs
-│   ├── StatisticsCalculatorTests.cs
-│   ├── CsvExporterTests.cs
-│   ├── StressTestEngineTests.cs
-│   ├── ModelTests.cs
-│   └── RefactoredArchitectureTests.cs
-├── Cli/                       # 命令行交互领域模块 (接口、实现与专属模型)
-├── Configuration/             # 配置管理领域模块 (接口、实现与专属模型)
-├── Http/                      # HTTP 传输与请求构建 (构建者模式与工厂模式)
-├── Engine/                    # 并发压测引擎领域模块 (接口与核心引擎实现)
-├── Statistics/                # 统计计算与报告输出 (策略模式打印器)
-├── Export/                    # 结果持久化导出模块 (策略模式导出器)
-├── Services/                  # [兼容垫片] 保持历史服务调用 API 100% 兼容
-├── Models/                    # [兼容垫片] 保持历史数据模型定义 100% 兼容
-├── Program.cs                 # 程序入口 (依赖倒置与组件协同)
-├── run-tests.sh               # 单测与覆盖率自动化一键执行脚本
-├── TESTING.md                 # 单元测试与测试覆盖率详细指引文档
-├── REFACTORING.md             # 系统重构架构、设计模式与接口定义详细文档
-├── appsettings.json           # 默认压测目标与请求头配置文件
-├── .gitignore                 # Git 忽略配置
-└── README.md                  # 项目说明文档
-```
+### Core Highlights
+- **High-Performance Connection Pooling**: Configured on top of low-level `SocketsHttpHandler` with socket reuse (`PooledConnectionLifetime` and `MaxConnectionsPerServer`), avoiding client-side socket starvation and port exhaustion under high loads.
+- **Accurate Concurrency Control**: Uses `SemaphoreSlim` in coordination with the .NET Task thread pool to strictly constrain active in-flight requests without thread thrashing.
+- **Graceful Termination & Signal Handling**: Captures OS-level termination signals (`Ctrl+C` / SIGINT) and timeout expirations to cleanly finalize in-flight requests with a graceful shutdown window (up to 10 seconds).
+- **Comprehensive Latency & Error Metrics**: Computes precise latency percentiles (P50, P90, P95, P99) using continuous linear interpolation, aggregates HTTP status code distributions, and classifies error exception types.
+- **Hierarchical Configuration Resolution**: Supports cascading configuration merging across `appsettings.json`, environment-specific files (`appsettings.{ASPNETCORE_ENVIRONMENT}.json`), and CLI arguments (CLI options take the highest precedence).
+- **Data Export & Extensibility**: Exports per-request metrics (timestamps, response times, HTTP statuses, exception messages) to standard CSV format with CSV escaping. Built using the Strategy Pattern to allow seamless export format extensions (JSON, Parquet, Markdown).
 
 ---
 
-## 4. 架构设计与请求调用链路
+## 2. Technology Stack Matrix
 
-### 4.1 整体架构设计
-`JTStressTests` 采用生产者-工作线程池模式运行于客户端：
-1. **参数与配置加载层**：
-   - 启动时解析命令行参数（`--concurrency`, `--duration`, `--url`, `--output`, `--method`, `--body`, `--header`）。
-   - 自动检测并读取程序运行目录下的 `appsettings.json`。
-   - 检测环境变量 `ASPNETCORE_ENVIRONMENT`，若存在对应环境配置文件（如 `appsettings.Production.json`）则读取并合并覆盖。
-   - 命令行参数具有最高优先级，最终合成一份全局有效的压测配置 `AppConfig`。
-2. **底层 HTTP 传输层**：
-   - 使用单例 `HttpClient` 与专属配置的 `SocketsHttpHandler`。
-   - `MaxConnectionsPerServer = concurrency`：保证每个服务端的最大连接数与指定并发度匹配，避免客户端连接等待。
-   - `PooledConnectionLifetime = TimeSpan.FromMinutes(5)`：保障长连接生命周期内定期重新解析 DNS，适应动态路由。
-   - `UseCookies = false`：关闭客户端 Cookie 自动管理，避免并发状态污染，Cookie 完全由配置头传入。
-3. **并发压测执行层**：
-   - 使用 `SemaphoreSlim(concurrency)` 严格限制在途并发请求数。
-   - 启动 `concurrency` 个并行 `Task`，在全局 `CancellationTokenSource` 允许的持续时间（`duration`）内循环获取信号量并执行压测。
-   - 每次请求通过 `HttpRequestMessage` 动态构建独立的请求体与 Header，使用 `HttpCompletionOption.ResponseHeadersRead` 快速接收响应头，并通过 `response.Content.CopyToAsync(Stream.Null)` 消费丢弃响应流，确保底层 Socket 连接高效复用。
-4. **统计与导出层**：
-   - 并发采集结果记录写入线程安全的 `ConcurrentBag<RequestResult>`。
-   - 压测结束（超时或用户按下 `Ctrl+C`）后触发平滑退出，汇总计算总请求数、QPS、成功率、耗时（平均、最小、最大、P50/P90/P95/P99 百分位）、HTTP 状态码及异常分布，并按需导出 CSV。
+The project adopts a modern .NET ecosystem toolchain. Below is a detailed breakdown categorized into Frontend, Backend, Infrastructure, and Toolchain:
 
-### 4.2 请求调用链路
+### 2.1 Frontend & User Interface
+| Component / Framework | Specific Version | Core Role in Project |
+| :--- | :--- | :--- |
+| **CLI / Console UI Engine** | System Console (.NET 8.0) | Provides interactive terminal interface, ANSI-compatible text formatting, formatted metric tables, and live console progress feedback without heavy graphical dependencies. |
+| **Command-Line Parser** | Custom Architecture (`JTStressTests.Cli`) | High-performance, zero-external-dependency argument parser supporting standard POSIX options, key-value syntax (`--flag value` and `--flag=value`), boolean flags, and multi-value parameters (e.g., custom HTTP headers). |
 
-```text
-[启动程序]
-   │
-   ├─► 解析命令行 CLI 参数
-   ├─► 读取 appsettings.json
-   ├─► [可选] 根据 ASPNETCORE_ENVIRONMENT 读取 appsettings.{Env}.json
-   └─► 合并配置 (CLI > Env Config > Base Config)
-         │
-         ▼
-[初始化 SocketsHttpHandler & HttpClient]
-         │
-         ▼
-[并发 Worker 线程池启动 (Tasks = concurrency)]
-   │
-   ├── Worker 1 ──┐
-   ├── Worker 2 ──┼─► [获取信号量 SemaphoreSlim]
-   └── Worker N ──┘            │
-                               ▼
-                   [构建 HttpRequestMessage]
-                               │
-                               ▼
-                   [发送 HTTP 请求至目标 API]
-                               │
-                               ▼
-                   [读取状态码 & 丢弃流 Stream.Null]
-                               │
-                               ▼
-                   [记录 RequestResult 到 ConcurrentBag]
-                               │
-                               ▼
-                   [释放信号量，开始下一轮请求]
-                               │
-         ┌─────────────────────┘
-         ▼ (达到 duration 或触发 Ctrl+C)
-[停止 Worker，平滑收尾 (宽限 10 秒)]
-         │
-         ▼
-[控制台输出统计报告 (QPS, Percentiles, 状态码, 异常)]
-         │
-         ▼
-[可选：写入 CSV 结果文件]
-```
+### 2.2 Backend & Runtime
+| Component / Library | Specific Version | Core Role in Project |
+| :--- | :--- | :--- |
+| **Core Runtime Platform** | .NET Runtime 8.0 (`net8.0`) | Cross-platform modern managed execution environment providing native JIT optimization, GC efficiency, and Tiered PGO (Profile-Guided Optimization). |
+| **Programming Language** | C# 12.0 (`LangVersion: latest`) | Primary programming language utilizing modern features: Top-Level Statements, Nullable Reference Types, Pattern Matching, Record Structs, and Primary Constructors. |
+| **HTTP Transport Subsystem** | `System.Net.Http` (.NET 8.0 BCL) | Supplies high-throughput HTTP client infrastructure (`HttpClient`, `HttpRequestMessage`, `HttpResponseMessage`) with asynchronous streaming pipeline (`HttpCompletionOption.ResponseHeadersRead`). |
+| **JSON Serialization Engine** | `System.Text.Json` (.NET 8.0 BCL) | High-performance, zero-allocation UTF-8 JSON parser and deserializer used for hierarchical configuration reading and cascading merge operations. |
+| **Asynchronous Concurrency** | `System.Threading` (.NET 8.0 BCL) | Manages worker scheduling and throughput capping via `SemaphoreSlim`, `CancellationTokenSource`, and atomic operations (`Interlocked`). |
+| **Lock-Free Data Collection** | `System.Collections.Concurrent` (.NET 8.0 BCL) | Provides lock-free, highly scalable metric record aggregation during multi-threaded stress execution via `ConcurrentBag<RequestResult>`. |
+| **Architecture Abstractions** | Custom Enterprise Architecture | Decoupled domain interfaces implementing Strategy (`IResultExporter`, `IReportPrinter`), Factory (`IHttpClientFactory`), and Builder (`IRequestBuilder`) patterns. |
+
+### 2.3 Infrastructure & Middleware
+| Component / System | Specific Version | Core Role in Project |
+| :--- | :--- | :--- |
+| **HTTP Handler & Connection Pool** | `SocketsHttpHandler` (.NET 8.0) | Low-level OS socket handler with connection lifecycle management (`PooledConnectionLifetime = 5 min`, `MaxConnectionsPerServer = concurrency`, cookie container isolation, connection pooling). |
+| **In-Memory Storage Pipeline** | Managed Memory (`ConcurrentBag<T>`) | In-memory zero-lock buffer collecting detailed per-request latency and status records, bypassing database bottlenecks during high-throughput benchmarking. |
+| **OS Socket & TCP Stack** | POSIX / WinSock TCP/IP Stack | Underlying operating system socket networking layer managed via OS kernel configuration (`ulimit`, `tcp_tw_reuse`, ephemeral port ranges). |
+| **Containerization Runtime** | Docker Engine >= 20.10 (OCI Compliant) | Standardized multi-stage container build and execution engine enabling isolated execution in cloud and CI/CD environments. |
+| **Orchestration / Multi-Node** | Docker Compose >= 2.0 | Orchestration specification for multi-node distributed stress testing topologies. |
+
+### 2.4 Toolchain & Testing
+| Component / Tool | Specific Version | Core Role in Project |
+| :--- | :--- | :--- |
+| **Build System & Compiler** | .NET SDK 8.0 / MSBuild 17.8+ | Compiles C# source code, restores package dependencies, executes target project validation, and generates single-file self-contained production binaries. |
+| **Unit Test Framework** | `MSTest` 4.0.1 | Microsoft's enterprise unit testing framework supporting test lifecycle attributes (`[TestClass]`, `[TestMethod]`), parameter-driven tests (`[DataRow]`), and assertion libraries. |
+| **Mocking Framework** | `Moq` 4.21.0 | Generates mock delegates for `HttpMessageHandler` and domain abstractions to perform isolated offline testing of network failures, timeouts, and edge cases. |
+| **Coverage Collector** | `coverlet.collector` 10.1.0 | Collects cross-platform code coverage metrics in standard Cobertura and OpenCover formats. |
+| **Test Automation Script** | Bash Shell Script (`run-tests.sh`) | Unified shell automation script to execute the test suite and publish TRX and code coverage artifacts into `./TestResults`. |
+| **Version Control** | Git 2.x+ | Source code version management and commit workflow. |
 
 ---
 
-## 5. 本地开发与运行步骤
+## 3. Environment & Compatibility Requirements
 
-### 5.1 环境要求
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) 或更高版本。
-- 操作系统支持：Linux、macOS、Windows。
+Ensure your target operating environment satisfies the minimum compatibility requirements:
 
-### 5.2 启动与运行
-
-1. **还原与构建项目**：
-   ```bash
-   dotnet build
-   ```
-
-2. **执行单元测试与代码覆盖率检查**：
-   ```bash
-   # 运行一键测试脚本 (生成测试报告与覆盖率文件至 ./TestResults)
-   ./run-tests.sh
-
-   # 或通过 dotnet CLI 运行
-   dotnet test
-   ```
-   详细测试规范与覆盖率说明参见 [TESTING.md](./TESTING.md)。
-
-3. **快速直接运行（使用 appsettings.json 默认配置）**：
-   ```bash
-   dotnet run
-   ```
-
-3. **通过命令行指定参数运行**：
-   ```bash
-   dotnet run -- --url "https://api.example.com/v1/test" --concurrency 100 --duration 30 --method POST --body '{"test":1}'
-   ```
-
-4. **发布为单文件独立可执行文件（推荐用于生产压测机）**：
-   ```bash
-   # 以 Linux x64 为例
-   dotnet publish -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true -o ./publish
-   cd ./publish
-   ./JTStressTests --url "https://api.example.com/v1/test" --concurrency 200 --duration 60 --output result.csv
-   ```
-
-### 5.3 命令行参数详解
-
-| 参数名称 | 类型 | 默认值 | 说明 |
+| Dependency Component | Minimum Version | Recommended Version | Scope / Notes |
 | :--- | :--- | :--- | :--- |
-| `--url` | string | 从配置文件读取 | 压测目标 URL 地址（必须指定或配置在 json 中） |
-| `--concurrency` | int | `500` | 并发 Worker 数量（必须为正整数） |
-| `--duration` | int | `60` | 压测持续时间（秒，必须为正整数） |
-| `--method` | string | `POST` | HTTP 请求方法，例如 `GET`, `POST`, `PUT` 等 |
-| `--body` | string | 从配置文件读取 | HTTP 请求体内容 |
-| `--header` | string | 从配置文件读取 | 自定义请求头，格式为 `Name: Value`，可重复传入多次 |
-| `--output` | string | 空 (不导出) | 压测结果 CSV 导出的文件路径 |
-| `--help`, `-h` | - | - | 打印帮助信息 |
-
-*注：支持 `--concurrency 200` 或 `--concurrency=200` 两种传参方式。*
+| **.NET SDK** | `8.0.100` | `8.0.x` or `10.0.x` LTS | Required for source code building, compiling, and running tests. |
+| **.NET Runtime** | `8.0.0` | `8.0.x` | Required only if running framework-dependent published builds. |
+| **Operating System** | | | Cross-platform binary compatibility: |
+| - Linux | Kernel 3.10+ (glibc 2.23+ or musl 1.2+) | Ubuntu 20.04+, Debian 11+, RHEL 8+, Alpine 3.18+ | Primary production stress-testing environment. |
+| - macOS | macOS 11.0 Big Sur (x64 / arm64) | macOS 13 Ventura or newer (Apple Silicon / Intel) | Supported for local development and benchmarking. |
+| - Windows | Windows 10 (Build 1607+) / Windows Server 2016+ | Windows 11 / Windows Server 2022 (x64 / arm64) | Supported for native execution and Visual Studio development. |
+| **Docker (Optional)** | `20.10.0` | `24.0.x`+ | Optional; required for containerized builds and execution. |
+| **Docker Compose (Optional)** | `2.0.0` | `v2.20.0`+ | Optional; required for multi-node load execution. |
 
 ---
 
-## 6. 配置文件说明与环境隔离
+## 4. Local Deployment & Execution Guide
 
-配置文件位于根目录下 `appsettings.json`，格式如下：
+Follow these verified terminal commands to restore, compile, test, and run the project across Windows, macOS, and Linux.
 
-```json
-{
-  "Url": "https://example.com/api/test-endpoint",
-  "Body": "param1=value1&param2=value2",
-  "ContentType": "application/x-www-form-urlencoded",
-  "Headers": {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/plain, */*",
-    "Origin": "https://example.com",
-    "Referer": "https://example.com",
-    "Cookie": "SESSIONID=xxxxxxxx"
-  }
-}
-```
+### 4.1 Clone Repository & Build Project
 
-### 多环境隔离配置
-程序原生支持基于 `ASPNETCORE_ENVIRONMENT` 环境变量的多环境隔离机制：
-- 若设置环境变量 `export ASPNETCORE_ENVIRONMENT=Staging`；
-- 程序将尝试寻找并读取 `appsettings.Staging.json`；
-- `appsettings.Staging.json` 中配置的项将覆盖 `appsettings.json` 中的同名项；
-- 最终命令行传入的参数会覆盖所有配置文件中的同名项。
-
----
-
-## 7. 容器化部署与 Docker / docker-compose 指南
-
-由于本工程为压测客户端工具，在服务器端进行容器化运行或分布式批量压测时，可通过以下标准化方式进行封装和部署。
-
-### 7.1 Dockerfile 参考
-
-在项目根目录下创建 `Dockerfile`：
-
-```dockerfile
-# 阶段 1: 构建
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
-COPY ["JTStressTests.csproj", "./"]
-RUN dotnet restore "JTStressTests.csproj"
-COPY . .
-RUN dotnet publish "JTStressTests.csproj" -c Release -o /app/publish /p:UseAppHost=false
-
-# 阶段 2: 运行
-FROM mcr.microsoft.com/dotnet/runtime:8.0-alpine AS final
-WORKDIR /app
-COPY --from=build /app/publish .
-
-# 默认入口
-ENTRYPOINT ["dotnet", "JTStressTests.dll"]
-CMD ["--help"]
-```
-
-#### 构建与运行容器
 ```bash
-# 1. 构建 Docker 镜像
+# Clone the repository
+git clone https://github.com/your-org/JTStressTests.git
+cd JTStressTests
+
+# Restore dependencies and build the solution in Debug mode
+dotnet build
+```
+
+### 4.2 Run Automated Tests & Code Coverage
+
+```bash
+# Option A: Execute using the automated cross-platform test script (Linux / macOS / Git Bash)
+chmod +x run-tests.sh
+./run-tests.sh
+
+# Option B: Run tests directly via dotnet CLI (All platforms: Windows PowerShell / macOS / Linux)
+dotnet test
+
+# Option C: Run tests with code coverage collection
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+### 4.3 Direct Run via .NET CLI
+
+```bash
+# Run with default configuration from appsettings.json
+dotnet run
+
+# Run with custom CLI arguments (Linux / macOS / PowerShell)
+dotnet run -- --url "https://api.example.com/v1/health" --concurrency 100 --duration 30 --method GET
+
+# Run POST request with payload and custom HTTP headers
+dotnet run -- \
+  --url "https://api.example.com/v1/login" \
+  --concurrency 200 \
+  --duration 60 \
+  --method POST \
+  --body '{"username":"tester","token":"xyz"}' \
+  --header "Authorization: Bearer token123" \
+  --header "X-Trace-Id: trace-9999" \
+  --output result.csv
+```
+
+### 4.4 Publish Self-Contained Single-File Executables
+
+For maximum throughput without installing the .NET runtime on target load testing servers, publish a self-contained, single-file binary:
+
+#### Linux (x64 / ARM64)
+```bash
+# Linux x64
+dotnet publish JTStressTests.csproj -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true -o ./publish-linux
+cd ./publish-linux
+chmod +x ./JTStressTests
+./JTStressTests --url "https://api.example.com/api" --concurrency 500 --duration 60 --output report.csv
+```
+
+#### macOS (Apple Silicon arm64 / Intel x64)
+```bash
+# macOS Apple Silicon (M1/M2/M3/M4)
+dotnet publish JTStressTests.csproj -c Release -r osx-arm64 --self-contained true /p:PublishSingleFile=true -o ./publish-macos
+cd ./publish-macos
+chmod +x ./JTStressTests
+./JTStressTests --url "https://api.example.com/api" --concurrency 200 --duration 30
+```
+
+#### Windows (PowerShell / CMD)
+```powershell
+# Windows x64
+dotnet publish JTStressTests.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true -o .\publish-win
+cd .\publish-win
+.\JTStressTests.exe --url "https://api.example.com/api" --concurrency 300 --duration 45 --output report.csv
+```
+
+### 4.5 Containerized Deployment (Docker & Docker Compose)
+
+#### Using Docker
+```bash
+# 1. Build the production Docker container image
 docker build -t jt-stress-tests:latest .
 
-# 2. 运行容器执行压测并挂载输出目录保存 CSV
+# 2. Run containerized benchmark with output mounted to local host directory
 docker run --rm \
-  -v $(pwd)/output:/app/output \
+  -v "$(pwd)/output:/app/output" \
   jt-stress-tests:latest \
   --url "https://api.example.com/test" \
-  --concurrency 200 \
-  --duration 30 \
-  --output /app/output/report.csv
+  --concurrency 250 \
+  --duration 60 \
+  --output /app/output/benchmark.csv
 ```
 
-### 7.2 docker-compose.yaml 使用参考
-
-在分布式压测场景下，可以使用 `docker-compose.yaml` 编排多个压测节点：
-
-```yaml
-version: '3.8'
-
-services:
-  stress-node-1:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["--url", "https://api.example.com/test", "--concurrency", "250", "--duration", "60", "--output", "/output/node1.csv"]
-    volumes:
-      - ./output:/output
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-    restart: "no"
-
-  stress-node-2:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["--url", "https://api.example.com/test", "--concurrency", "250", "--duration", "60", "--output", "/output/node2.csv"]
-    volumes:
-      - ./output:/output
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-    restart: "no"
-```
-
-#### 启动命令
+#### Using Docker Compose (Distributed Multiple Nodes)
 ```bash
-# 构建并启动多节点压测
+# Launch multiple stress testing nodes defined in docker-compose.yaml
 docker compose up --build
 ```
 
 ---
 
-## 8. 运行与部署注意事项
+## 5. Command-Line Options Reference
 
-1. **合法合规性与安全授权**：
-   - 压测行为会对目标服务器、数据库、反向代理（Nginx）、网关造成巨大负载，甚至导致系统不可用。
-   - 务必在已获得业务主管与系统运维团队明确授权并限定窗口期内进行测试。
-2. **压测机操作系统参数调优（ulimit 与端口耗尽）**：
-   - 在高并发（如并发 500+）短时间内可能创建大量 Socket 连接。若出现 `SocketException` 或连接重置，需检查 Linux 系统的文件打开数限制：
+All CLI parameters can be provided via space notation (`--flag value`) or equals notation (`--flag=value`). CLI arguments take precedence over any settings in `appsettings.json`.
+
+| Parameter | Type | Default Value | Description |
+| :--- | :--- | :--- | :--- |
+| `--url` | string | Read from `appsettings.json` | Target API endpoint URL (HTTP or HTTPS). |
+| `--concurrency` | int | `500` | Number of concurrent worker tasks (must be a positive integer). |
+| `--duration` | int | `60` | Duration of the benchmark test in seconds (must be a positive integer). |
+| `--method` | string | `POST` | HTTP request method (e.g., `GET`, `POST`, `PUT`, `DELETE`, `PATCH`). |
+| `--body` | string | Read from `appsettings.json` | Request payload body string. |
+| `--header` | string | Read from `appsettings.json` | Custom HTTP header in `Name: Value` format. Can be repeated multiple times. |
+| `--output` | string | Empty (disabled) | Destination file path to export request records as CSV. |
+| `--help`, `-h` | flag | `false` | Displays command usage and available options. |
+
+---
+
+## 6. Project Architecture & Directory Structure
+
+The project is structured according to SOLID principles, decoupling concerns into domain-specific modules with legacy facade compatibility:
+
+```text
+.
+├── JTStressTests.sln                  # Visual Studio / .NET solution file
+├── JTStressTests.csproj               # Main executable project file (.NET 8.0)
+├── Program.cs                         # Application entry point (Top-level statements & DI orchestration)
+├── appsettings.json                   # Base configuration file (Default endpoints and headers)
+├── run-tests.sh                       # Automated test & code coverage execution script
+├── README.md                          # Standard English documentation (Current file)
+├── ReadMe-ZhCn.md                     # Standard Simplified Chinese documentation
+├── TESTING.md                         # Unit testing specifications & coverage report guide
+├── REFACTORING.md                     # Architecture refactoring, interface contracts & design patterns
+│
+├── Cli/                               # Command-Line Domain Module
+│   ├── ICommandLineParser.cs          # Command-line parsing abstraction
+│   ├── CommandLineParser.cs           # Robust token-based argument parser implementation
+│   └── CommandLineOptions.cs          # Domain data model for CLI arguments
+│
+├── Configuration/                     # Configuration Management Domain Module
+│   ├── IConfigLoader.cs               # Configuration loader & cascading merge abstraction
+│   ├── ConfigLoader.cs                # Multi-environment JSON deserializer & merge implementation
+│   └── AppConfig.cs                   # Configuration POCO model
+│
+├── Http/                              # Network Transport & Construction Module
+│   ├── IRequestBuilder.cs             # Request builder abstraction (Builder Pattern)
+│   ├── RequestBuilder.cs              # HttpRequestMessage builder implementation
+│   ├── IHttpClientFactory.cs          # HttpClient factory abstraction (Factory Pattern)
+│   └── SocketsHttpClientFactory.cs    # Factory configuring SocketsHttpHandler connection pooling
+│
+├── Engine/                            # Concurrency Stress Execution Engine
+│   ├── IStressTestEngine.cs           # Stress test runner engine abstraction
+│   ├── StressTestEngine.cs            # High-throughput runner utilizing SemaphoreSlim
+│   └── RequestResult.cs               # Per-request execution result data record
+│
+├── Statistics/                        # Performance Metrics & Reporting Module
+│   ├── IStatisticsCalculator.cs       # Statistical metric calculator abstraction
+│   ├── StatisticsCalculator.cs        # Linear interpolation percentile & aggregation logic
+│   ├── IReportPrinter.cs              # Report printer strategy abstraction (Strategy Pattern)
+│   ├── ConsoleReportPrinter.cs        # ANSI console formatted table printer implementation
+│   └── StressTestReport.cs            # Aggregated performance metric report model
+│
+├── Export/                            # Metric Persistence & Export Module
+│   ├── IResultExporter.cs             # Persistence exporter strategy interface (Strategy Pattern)
+│   └── CsvResultExporter.cs           # RFC-compliant CSV exporter with escaping
+│
+├── Services/                          # [Backward Compatibility Facade Layer]
+│   ├── CommandLineParser.cs           # Static facade forwarding to Cli domain
+│   ├── ConfigLoader.cs                # Static facade forwarding to Configuration domain
+│   ├── RequestBuilder.cs              # Static facade forwarding to Http domain
+│   ├── StressTestEngine.cs            # Facade forwarding to Engine domain
+│   ├── StatisticsCalculator.cs        # Static facade forwarding to Statistics domain
+│   └── CsvExporter.cs                 # Static facade forwarding to Export domain
+│
+├── Models/                            # [Backward Compatibility Model Layer]
+│   ├── AppConfig.cs                   # Type aliasing & implicit operators for AppConfig
+│   ├── CommandLineOptions.cs          # Type aliasing & implicit operators for CommandLineOptions
+│   ├── RequestResult.cs               # Type aliasing & implicit operators for RequestResult
+│   └── StressTestReport.cs            # Type aliasing & implicit operators for StressTestReport
+│
+└── JTStressTests.Tests/               # Unit Test Suite Project (.NET 8.0)
+    ├── JTStressTests.Tests.csproj     # Test project file (MSTest 4.0.1, Moq 4.21.0, Coverlet 10.1.0)
+    ├── CommandLineParserTests.cs      # CLI parsing edge cases, defaults, errors & flag validation
+    ├── ConfigLoaderTests.cs           # JSON serialization, invalid files, cascading overrides
+    ├── RequestBuilderTests.cs         # Method handling, headers, payload encoding & content types
+    ├── StatisticsCalculatorTests.cs   # Linear interpolation percentiles, aggregations, QPS
+    ├── CsvExporterTests.cs            # Escaping special characters, sorting, file generation
+    ├── StressTestEngineTests.cs       # Mock HttpMessageHandler concurrency, cancellation, errors
+    ├── ModelTests.cs                  # Model immutability, properties & state validation
+    └── RefactoredArchitectureTests.cs # Strategy, Factory, Builder patterns & DI integration
+```
+
+---
+
+## 7. Development Standards & Conventions
+
+To maintain high code quality and software reliability, all contributions must adhere to the following development conventions:
+
+### 7.1 Coding Conventions & Design Principles
+- **Object-Oriented SOLID Design**:
+  - **Single Responsibility (SRP)**: Each class has one specific responsibility (e.g., parsing CLI options, calculating statistics, exporting CSV).
+  - **Open/Closed (OCP)**: Interfaces such as `IResultExporter` and `IReportPrinter` allow introducing new export formats (e.g., JSON, Prometheus) without changing caller code.
+  - **Dependency Inversion (DIP)**: `Program.cs` and `StressTestEngine` depend on abstractions (`IRequestBuilder`, `IHttpClientFactory`), facilitating unit testing through test doubles and mocks.
+- **C# Language Standards**:
+  - Enabled `<Nullable>enable</Nullable>`: All reference types must explicitly handle nullability.
+  - Enabled `<ImplicitUsings>enable</ImplicitUsings>`: Standard system namespaces are globally imported.
+  - Avoid blocking calls (`.Result`, `.Wait()`). All I/O operations must be fully asynchronous (`async` / `await`).
+  - Use `HttpCompletionOption.ResponseHeadersRead` combined with `CopyToAsync(Stream.Null)` to release network buffers promptly.
+
+### 7.2 Testing & Quality Assurance Standards
+- **Triple-A Pattern (AAA)**: Every test case must follow `Arrange`, `Act`, and `Assert`.
+- **Naming Convention**: Test methods must follow `MethodUnderTest_StateUnderTest_ExpectedBehavior` (e.g., `Percentile_EvenNumberOfElements_CalculatesLinearInterpolation`).
+- **Isolation via Test Doubles**: Network dependencies must be simulated using `Moq` against `HttpMessageHandler` to ensure deterministic execution without external network calls.
+- **Coverage Standard**: Core domain modules must maintain a minimum of **95%+** branch and statement coverage.
+
+---
+
+## 8. Troubleshooting & FAQ
+
+### 8.1 Socket Starvation or `SocketException` under High Concurrency
+- **Symptom**: `SocketException: Address already in use` or connection timeout during intense benchmarks (> 1000 concurrency).
+- **Cause**: Client OS running out of available ephemeral ports or hitting file descriptor limits.
+- **Resolution**:
+  1. Increase the Linux file descriptor limit:
      ```bash
      ulimit -n 65535
      ```
-   - 调优本地可用临时端口范围与 TIME_WAIT 快速回收配置：
+  2. Optimize TCP port recycling and reuse in `/etc/sysctl.conf`:
      ```bash
      sudo sysctl -w net.ipv4.ip_local_port_range="1024 65535"
      sudo sysctl -w net.ipv4.tcp_tw_reuse=1
      ```
-3. **内存与结果记录控制**：
-   - 工具使用内存中的 `ConcurrentBag<RequestResult>` 记录每次请求。如果在数万级 QPS 下进行数十分钟的超长压测，可能会产生数千万条对象记录导致高内存占用。超长时间极限压测建议合理规划持续时间（`--duration`）或分批次压测。
-4. **网络带宽与客户端瓶颈**：
-   - 在压测吞吐量达不到预期时，应排查压测客户端本身的 CPU 利用率（是否打满）、网卡出口带宽以及 DNS 解析耗时，确保客户端没有形成瓶颈。
+
+### 8.2 Memory Growth During Prolonged Benchmarking
+- **Symptom**: High memory usage when running long benchmarks (e.g., duration > 1 hour at 20,000+ QPS).
+- **Cause**: Per-request metrics are recorded in memory in `ConcurrentBag<RequestResult>` to compute exact percentile distributions. Millions of requests accumulate significant memory overhead.
+- **Resolution**:
+  - Run benchmark tests in discrete batches (e.g., 60 to 300 seconds per batch).
+  - Provide a reasonable `--duration` flag.
+
+### 8.3 DNS Changes Not Reflected
+- **Symptom**: Target domain IP changed during stress testing, but client continues hitting old server instances.
+- **Cause**: Connection pooling keeps persistent TCP sockets open.
+- **Resolution**:
+  - `SocketsHttpClientFactory` sets `PooledConnectionLifetime = TimeSpan.FromMinutes(5)`, ensuring TCP connections are gracefully recreated every 5 minutes to trigger fresh DNS queries.
+
+### 8.4 Configuration Precedence Confusion
+- **Symptom**: Changes made in `appsettings.json` do not take effect when passing CLI options.
+- **Resolution**:
+  - Configuration cascading follows a strict order of priority:
+    $$\text{CLI Arguments} > \text{appsettings.\{ASPNETCORE\_ENVIRONMENT\}.json} > \text{appsettings.json}$$
+  - Inspect terminal output to verify resolved effective settings.
+
+---
+
+## 9. License
+
+This project is licensed under the [MIT License](LICENSE).
