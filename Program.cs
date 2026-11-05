@@ -1,3 +1,11 @@
+// ============================================================================
+// 文件名称: Program.cs
+// 核心功能: JTStressTests 控制台压力测试应用程序入口，编排依赖初始化、CLI 解析、守护进程模式、配置加载、压测调度及结果导出
+// 创建时间: 2026-11-05
+// 维护人员: megadotnet
+// 核心依赖: System.Text.Json, JTStressTests.Cli, JTStressTests.Configuration, JTStressTests.Engine, JTStressTests.Export, JTStressTests.Http, JTStressTests.Statistics
+// ============================================================================
+
 using System.Text.Json;
 using JTStressTests.Cli;
 using JTStressTests.Configuration;
@@ -14,7 +22,7 @@ using JTStressTests.Statistics;
 
 Console.WriteLine("本工具仅用于对已获得授权的系统进行性能测试。");
 
-// ---------------- 依赖与组件初始化 ----------------
+// ---------------- 1. 依赖与业务组件初始化 (依赖倒置原则 DIP) ----------------
 ICommandLineParser cliParser = CommandLineParser.Default;
 IConfigLoader configLoader = ConfigLoader.Default;
 IHttpClientFactory clientFactory = SocketsHttpClientFactory.Default;
@@ -23,21 +31,24 @@ IStatisticsCalculator statsCalculator = StatisticsCalculator.Default;
 IReportPrinter reportPrinter = ConsoleReportPrinter.Default;
 IResultExporter resultExporter = CsvResultExporter.Default;
 
-// ---------------- 命令行参数解析 ----------------
+// ---------------- 2. 命令行参数解析 ----------------
 CommandLineOptions options = cliParser.Parse(args);
 
+// 若指定了 --help 或 -h，打印使用指南并正常退出
 if (options.ShowHelp)
 {
     cliParser.PrintUsage();
     return 0;
 }
 
+// 若命令行参数存在格式或数值错误，打印帮助并退出（返回码 2 表示参数无效）
 if (options.HasError)
 {
     cliParser.PrintUsage();
     return 2;
 }
 
+// 注册全局 Ctrl+C / SIGINT 信号取消源，支持优雅中断
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (sender, e) =>
 {
@@ -45,7 +56,7 @@ Console.CancelKeyPress += (sender, e) =>
     cts.Cancel();
 };
 
-// ---------------- Web 服务守护进程模式 ----------------
+// ---------------- 3. Web 服务守护进程模式 ----------------
 if (options.ServerMode)
 {
     IWebServer webServer = WebServer.Default;
@@ -53,7 +64,7 @@ if (options.ServerMode)
     return 0;
 }
 
-// ---------------- 加载配置文件 ----------------
+// ---------------- 4. 加载配置文件 (appsettings.json) ----------------
 string baseConfigPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
 if (!File.Exists(baseConfigPath))
 {
@@ -72,7 +83,7 @@ catch (JsonException ex)
     return 2;
 }
 
-// 根据 ASPNETCORE_ENVIRONMENT 加载环境特定配置（如 appsettings.Development.json），覆盖基础配置
+// 根据 ASPNETCORE_ENVIRONMENT 环境变量加载环境特定配置（如 appsettings.Development.json）进行级联覆盖
 string environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? string.Empty;
 if (!string.IsNullOrWhiteSpace(environment))
 {
@@ -95,16 +106,17 @@ if (!string.IsNullOrWhiteSpace(environment))
     }
 }
 
-// ---------------- 合并配置（命令行优先） ----------------
+// ---------------- 5. 合并配置与命令行参数（命令行优先原则） ----------------
 var (targetUrl, requestBody, requestContentType, requestHeaders) = configLoader.ResolveEffectiveConfig(config, options);
 
+// 校验目标压测 URL 是否有效
 if (string.IsNullOrWhiteSpace(targetUrl))
 {
     Console.Error.WriteLine("错误: 未配置目标 URL。请在 appsettings.json 中设置 Url，或通过 --url 参数指定。");
     return 2;
 }
 
-// ---------------- HttpClient 与引擎配置 ----------------
+// ---------------- 6. HttpClient 与并发引擎初始化及压测执行 ----------------
 using var http = clientFactory.CreateClient(options.Concurrency);
 IStressTestEngine engine = new StressTestEngine(http, requestBuilder);
 
@@ -118,11 +130,11 @@ var (results, elapsedSeconds) = await engine.RunAsync(
     options.Duration,
     cts.Token);
 
-// ---------------- 统计与报告 ----------------
+// ---------------- 7. 统计指标计算与控制台报告打印 ----------------
 var report = statsCalculator.GenerateReport(results, elapsedSeconds);
 reportPrinter.Print(report);
 
-// ---------------- 结果导出 ----------------
+// ---------------- 8. 压测详细结果导出 (若指定了 --output 参数) ----------------
 if (!string.IsNullOrEmpty(options.OutputPath))
 {
     resultExporter.ExportToFile(options.OutputPath, results);

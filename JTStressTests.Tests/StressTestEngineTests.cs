@@ -1,3 +1,11 @@
+// ============================================================================
+// 文件名称: StressTestEngineTests.cs
+// 核心功能: 压测执行引擎 StressTestEngine 单元测试套件，通过 Mock HttpMessageHandler 模拟网络请求、异常捕获及取消机制
+// 创建时间: 2026-11-05
+// 维护人员: megadotnet
+// 核心依赖: Moq, Moq.Protected, Microsoft.VisualStudio.TestTools.UnitTesting, JTStressTests.Services
+// ============================================================================
+
 using System.Net;
 using System.Text;
 using JTStressTests.Services;
@@ -7,9 +15,15 @@ using Moq.Protected;
 
 namespace JTStressTests.Tests;
 
+/// <summary>
+/// 压测执行引擎单元测试类
+/// </summary>
 [TestClass]
 public sealed class StressTestEngineTests
 {
+    /// <summary>
+    /// 验证构造压测引擎时若传入空的 HttpClient 则抛出 ArgumentNullException 异常
+    /// </summary>
     [TestMethod]
     public void Constructor_NullHttpClient_ThrowsArgumentNullException()
     {
@@ -17,6 +31,9 @@ public sealed class StressTestEngineTests
         Assert.Throws<ArgumentNullException>(() => new StressTestEngine(null!));
     }
 
+    /// <summary>
+    /// 验证便捷工厂方法 CreateDefaultHttpClient 能够成功创建具有默认 30s 超时配置的 HttpClient
+    /// </summary>
     [TestMethod]
     public void CreateDefaultHttpClient_ReturnsConfiguredHttpClient()
     {
@@ -28,6 +45,9 @@ public sealed class StressTestEngineTests
         Assert.AreEqual(TimeSpan.FromSeconds(30), client.Timeout);
     }
 
+    /// <summary>
+    /// 验证在目标服务正常响应 200 OK 场景下，引擎准确收集全部成功请求记录并标记 IsSuccess 为 true
+    /// </summary>
     [TestMethod]
     public async Task RunAsync_SuccessfulMockRequests_CollectsSuccessResults()
     {
@@ -50,7 +70,7 @@ public sealed class StressTestEngineTests
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
 
-        // Act: Run with 2 workers for 1 second, but cancelled after 500ms
+        // Act: 启动 2 个 Worker 压测 1 秒，500ms 后超时取消
         var (results, elapsedSeconds) = await engine.RunAsync(
             method: "POST",
             targetUrl: "https://mock.test/api",
@@ -69,10 +89,13 @@ public sealed class StressTestEngineTests
         Assert.IsGreaterThanOrEqualTo(0.0, elapsedSeconds);
     }
 
+    /// <summary>
+    /// 验证当目标端返回 500 错误或底层抛出 HttpRequestException 异常时，引擎准确捕获状态码及错误信息
+    /// </summary>
     [TestMethod]
     public async Task RunAsync_HttpErrorsAndExceptions_RecordsStatusAndException()
     {
-        // Arrange: alternate between 500 InternalServerError and HttpRequestException
+        // Arrange: 交替模拟 500 InternalServerError 与 HttpRequestException 异常
         int callCount = 0;
         var handlerMock = new Mock<HttpMessageHandler>(MockBehavior.Loose);
         handlerMock
@@ -126,6 +149,9 @@ public sealed class StressTestEngineTests
         Assert.IsTrue(exceptionResults.All(r => r.Exception!.Contains("HttpRequestException")));
     }
 
+    /// <summary>
+    /// 验证在取消令牌预先已处于取消状态时，引擎能够立刻终止并退出，不发生任何任务阻塞
+    /// </summary>
     [TestMethod]
     public async Task RunAsync_ImmediatelyCanceledToken_CompletesWithoutHanging()
     {
@@ -135,7 +161,7 @@ public sealed class StressTestEngineTests
         var engine = new StressTestEngine(httpClient);
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel(); // Token already canceled
+        cts.Cancel(); // 预先取消令牌
 
         // Act
         var (results, elapsedSeconds) = await engine.RunAsync(

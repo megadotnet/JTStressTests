@@ -1,3 +1,11 @@
+// ============================================================================
+// 文件名称: ConsoleReportPrinter.cs
+// 核心功能: 基于控制台的标准格式化压测统计报告输出策略实现
+// 创建时间: 2026-11-05
+// 维护人员: megadotnet
+// 核心依赖: System.Globalization, JTStressTests.Statistics
+// ============================================================================
+
 using System.Globalization;
 
 namespace JTStressTests.Statistics;
@@ -7,13 +15,20 @@ namespace JTStressTests.Statistics;
 /// </summary>
 public sealed class ConsoleReportPrinter : IReportPrinter
 {
+    /// <summary>
+    /// 全局单例缓存实例
+    /// </summary>
     private static readonly ConsoleReportPrinter DefaultInstance = new();
 
     /// <summary>
-    /// 全局默认控制台打印策略实例
+    /// 获取全局默认控制台打印策略实例
     /// </summary>
     public static ConsoleReportPrinter Default => DefaultInstance;
 
+    /// <summary>
+    /// 将压测汇总报告以清晰规整的格式输出至标准控制台
+    /// </summary>
+    /// <param name="report">压测结果统计报告实体</param>
     public void Print(StressTestReport report)
     {
         Console.WriteLine();

@@ -1,3 +1,11 @@
+// ============================================================================
+// 文件名称: ConfigLoaderTests.cs
+// 核心功能: 配置加载器 ConfigLoader 单元测试套件，验证 JSON 反序列化、多环境覆盖及命令行参数优先级合并
+// 创建时间: 2026-11-05
+// 维护人员: megadotnet
+// 核心依赖: System.Text.Json, Microsoft.VisualStudio.TestTools.UnitTesting, JTStressTests.Models, JTStressTests.Services
+// ============================================================================
+
 using System.Text.Json;
 using JTStressTests.Models;
 using JTStressTests.Services;
@@ -5,11 +13,20 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace JTStressTests.Tests;
 
+/// <summary>
+/// 配置加载器功能与规则单元测试类
+/// </summary>
 [TestClass]
 public sealed class ConfigLoaderTests
 {
+    /// <summary>
+    /// 测试专用的隔离临时目录路径
+    /// </summary>
     private string _tempDirectory = null!;
 
+    /// <summary>
+    /// 每个测试用例执行前的初始化方法，创建隔离的临时测试目录
+    /// </summary>
     [TestInitialize]
     public void SetUp()
     {
@@ -17,6 +34,9 @@ public sealed class ConfigLoaderTests
         Directory.CreateDirectory(_tempDirectory);
     }
 
+    /// <summary>
+    /// 每个测试用例执行完毕后的清理方法，递归删除测试临时目录
+    /// </summary>
     [TestCleanup]
     public void TearDown()
     {
@@ -26,6 +46,9 @@ public sealed class ConfigLoaderTests
         }
     }
 
+    /// <summary>
+    /// 验证合法的 JSON 配置文件能被正确加载并反序列化至 AppConfig 对象
+    /// </summary>
     [TestMethod]
     public void LoadConfig_ValidJsonFile_DeserializesCorrectly()
     {
@@ -57,6 +80,9 @@ public sealed class ConfigLoaderTests
         Assert.AreEqual("secret123", config.Headers["X-Api-Key"]);
     }
 
+    /// <summary>
+    /// 验证当 JSON 文件格式存在语法错误时正确抛出 JsonException
+    /// </summary>
     [TestMethod]
     public void LoadConfig_MalformedJson_ThrowsJsonException()
     {
@@ -68,6 +94,9 @@ public sealed class ConfigLoaderTests
         Assert.Throws<JsonException>(() => ConfigLoader.LoadConfig(filePath));
     }
 
+    /// <summary>
+    /// 验证当基础配置文件 appsettings.json 不存在时 LoadMergedConfig 返回 null
+    /// </summary>
     [TestMethod]
     public void LoadMergedConfig_BaseFileDoesNotExist_ReturnsNull()
     {
@@ -78,6 +107,9 @@ public sealed class ConfigLoaderTests
         Assert.IsNull(config);
     }
 
+    /// <summary>
+    /// 验证仅存在基础配置文件时的正确加载
+    /// </summary>
     [TestMethod]
     public void LoadMergedConfig_BaseConfigOnly_LoadsSuccessfully()
     {
@@ -94,6 +126,9 @@ public sealed class ConfigLoaderTests
         Assert.AreEqual("text/plain", config.ContentType);
     }
 
+    /// <summary>
+    /// 验证多环境配置文件存在时正确执行属性级联覆盖与字典合并
+    /// </summary>
     [TestMethod]
     public void LoadMergedConfig_WithEnvironmentFile_MergesAndOverridesBase()
     {
@@ -127,15 +162,18 @@ public sealed class ConfigLoaderTests
 
         // Assert
         Assert.IsNotNull(config);
-        Assert.AreEqual("https://staging.org", config.Url); // Overridden
-        Assert.AreEqual("base_body", config.Body);           // Preserved from base
-        Assert.AreEqual("text/plain", config.ContentType);   // Preserved from base
+        Assert.AreEqual("https://staging.org", config.Url); // 被环境配置覆盖
+        Assert.AreEqual("base_body", config.Body);           // 继承基础配置
+        Assert.AreEqual("text/plain", config.ContentType);   // 继承基础配置
         Assert.IsNotNull(config.Headers);
         Assert.AreEqual("Base1", config.Headers["H1"]);
-        Assert.AreEqual("Staging2", config.Headers["H2"]);  // Overridden
-        Assert.AreEqual("Staging3", config.Headers["H3"]);  // Added
+        Assert.AreEqual("Staging2", config.Headers["H2"]);  // 覆盖请求头
+        Assert.AreEqual("Staging3", config.Headers["H3"]);  // 新增请求头
     }
 
+    /// <summary>
+    /// 验证基准配置为 null 时 Merge 方法正确直接应用覆盖配置的属性
+    /// </summary>
     [TestMethod]
     public void Merge_NullBaseConfig_ReturnsOverrideConfigValues()
     {
@@ -158,6 +196,9 @@ public sealed class ConfigLoaderTests
         Assert.AreEqual("1", merged.Headers!["A"]);
     }
 
+    /// <summary>
+    /// 验证命令行传入的参数优先于配置文件中的同名项
+    /// </summary>
     [TestMethod]
     public void ResolveEffectiveConfig_CliOverridesConfigAndDefaultContentType()
     {
@@ -196,6 +237,9 @@ public sealed class ConfigLoaderTests
         Assert.AreEqual("CliVal2", headers["Header2"]);
     }
 
+    /// <summary>
+    /// 验证在未指定命令行参数时降级回退至配置文件对应的默认值
+    /// </summary>
     [TestMethod]
     public void ResolveEffectiveConfig_MissingCliValues_FallsBackToConfigValues()
     {

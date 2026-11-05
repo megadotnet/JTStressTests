@@ -1,11 +1,25 @@
+// ============================================================================
+// 文件名称: ModelTests.cs
+// 核心功能: 领域实体与数据模型（RequestResult、AppConfig、StressTestReport）的属性赋值及构造行为单元测试套件
+// 创建时间: 2026-11-05
+// 维护人员: megadotnet
+// 核心依赖: Microsoft.VisualStudio.TestTools.UnitTesting, JTStressTests.Models
+// ============================================================================
+
 using JTStressTests.Models;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace JTStressTests.Tests;
 
+/// <summary>
+/// 基础数据实体与模型单元测试类
+/// </summary>
 [TestClass]
 public sealed class ModelTests
 {
+    /// <summary>
+    /// 验证以合法入参构造 RequestResult 实体后各只读属性被准确赋值
+    /// </summary>
     [TestMethod]
     public void RequestResult_ConstructedWithValidValues_PropertiesInitializedCorrectly()
     {
@@ -30,6 +44,9 @@ public sealed class ModelTests
         Assert.IsNull(result.Exception);
     }
 
+    /// <summary>
+    /// 验证请求异常失败场景下 RequestResult 能正确保留 null 状态码与非空异常文本
+    /// </summary>
     [TestMethod]
     public void RequestResult_ExceptionScenario_RetainsFailureProperties()
     {
@@ -52,6 +69,9 @@ public sealed class ModelTests
         Assert.AreEqual("HttpRequestException: Connection refused", result.Exception);
     }
 
+    /// <summary>
+    /// 验证 AppConfig 实体的 getter 与 setter 正常读写各项配置属性
+    /// </summary>
     [TestMethod]
     public void AppConfig_GettersAndSetters_OperateProperly()
     {
@@ -71,6 +91,9 @@ public sealed class ModelTests
         Assert.AreEqual("Bearer 123", config.Headers!["Authorization"]);
     }
 
+    /// <summary>
+    /// 验证 StressTestReport 汇总报告实体的数值计算与字典集合读写正确性
+    /// </summary>
     [TestMethod]
     public void StressTestReport_GettersAndSetters_OperateProperly()
     {
