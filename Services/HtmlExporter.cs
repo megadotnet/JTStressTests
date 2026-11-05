@@ -37,28 +37,7 @@ public static class HtmlExporter
     public static string GenerateHtml(IEnumerable<RequestResult> results, string? title, StressTestReport? report)
     {
         var modernList = results.Select(r => (JTStressTests.Engine.RequestResult)r);
-        JTStressTests.Statistics.StressTestReport? modernReport = null;
-        if (report != null)
-        {
-            modernReport = new JTStressTests.Statistics.StressTestReport
-            {
-                TotalRequests = report.TotalRequests,
-                SuccessCount = report.SuccessCount,
-                FailCount = report.FailCount,
-                SuccessRate = report.SuccessRate,
-                ElapsedSeconds = report.ElapsedSeconds,
-                Qps = report.Qps,
-                AverageMs = report.AverageMs,
-                MinMs = report.MinMs,
-                MaxMs = report.MaxMs,
-                P50Ms = report.P50Ms,
-                P90Ms = report.P90Ms,
-                P95Ms = report.P95Ms,
-                P99Ms = report.P99Ms,
-                StatusCodeCounts = new Dictionary<int, int>(report.StatusCodeCounts),
-                ExceptionCounts = new Dictionary<string, int>(report.ExceptionCounts)
-            };
-        }
+        JTStressTests.Statistics.StressTestReport? modernReport = report != null ? (JTStressTests.Statistics.StressTestReport)report : null;
 
         return JTStressTests.Export.HtmlResultExporter.Default.Generate(modernList, title, modernReport);
     }
@@ -84,28 +63,7 @@ public static class HtmlExporter
     public static void ExportToFile(string outputPath, IEnumerable<RequestResult> results, string? title, StressTestReport? report)
     {
         var modernList = results.Select(r => (JTStressTests.Engine.RequestResult)r);
-        JTStressTests.Statistics.StressTestReport? modernReport = null;
-        if (report != null)
-        {
-            modernReport = new JTStressTests.Statistics.StressTestReport
-            {
-                TotalRequests = report.TotalRequests,
-                SuccessCount = report.SuccessCount,
-                FailCount = report.FailCount,
-                SuccessRate = report.SuccessRate,
-                ElapsedSeconds = report.ElapsedSeconds,
-                Qps = report.Qps,
-                AverageMs = report.AverageMs,
-                MinMs = report.MinMs,
-                MaxMs = report.MaxMs,
-                P50Ms = report.P50Ms,
-                P90Ms = report.P90Ms,
-                P95Ms = report.P95Ms,
-                P99Ms = report.P99Ms,
-                StatusCodeCounts = new Dictionary<int, int>(report.StatusCodeCounts),
-                ExceptionCounts = new Dictionary<string, int>(report.ExceptionCounts)
-            };
-        }
+        JTStressTests.Statistics.StressTestReport? modernReport = report != null ? (JTStressTests.Statistics.StressTestReport)report : null;
 
         JTStressTests.Export.HtmlResultExporter.Default.ExportToFile(outputPath, modernList, title, modernReport);
     }

@@ -137,6 +137,63 @@ public sealed class HtmlExporterTests
         StringAssert.Contains(html, "&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;");
         Assert.DoesNotContain("<div>Dangerous & Malicious <script></div>", html);
         StringAssert.Contains(html, "&lt;div&gt;Dangerous &amp; Malicious &lt;script&gt;&lt;/div&gt;");
+        // 验证直方图 < 50ms 标签安全转义为 &lt; 50ms
+        StringAssert.Contains(html, "&lt; 50ms");
+    }
+
+    /// <summary>
+    /// 验证在德语/法语等使用逗号作为小数点的 Culture 下生成 SVG 坐标与点坐标依然符合标准规范，无逗号破坏 points
+    /// </summary>
+    [TestMethod]
+    public void Generate_UnderCommaDecimalCulture_ProducesValidInvariantSvgPoints()
+    {
+        var originalCulture = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            // 切换为德语 Culture (de-DE: 小数点为逗号 ,)
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
+
+            var baseTime = new DateTime(2026, 11, 5, 12, 0, 0, DateTimeKind.Utc);
+            var results = new List<RequestResult>
+            {
+                new(1, baseTime, 12.5, 200, true, null),
+                new(2, baseTime.AddSeconds(1), 37.8, 200, true, null)
+            };
+
+            string html = HtmlResultExporter.Default.Generate(results);
+
+            // Assert: SVG points 属性内部点对格式为 X,Y，其中 X 与 Y 必须使用 . 作为小数点，绝不能出现点坐标包含多个逗号
+            StringAssert.Contains(html, "<polyline points=\"");
+            StringAssert.Contains(html, "60.0,170.6 840.0,30.0");
+            Assert.DoesNotContain("60,0", html);
+            Assert.DoesNotContain("840,0", html);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
+    /// <summary>
+    /// 验证高成功率与极端切片下（如 999 次 200 与 1 次 500）环形图不会因为阈值判定丢弃失败切片
+    /// </summary>
+    [TestMethod]
+    public void Generate_ExtremelyHighSuccessRate_DoesNotDropFailureSlice()
+    {
+        var baseTime = new DateTime(2026, 11, 5, 12, 0, 0, DateTimeKind.Utc);
+        var results = new List<RequestResult>();
+        for (int i = 1; i <= 999; i++)
+        {
+            results.Add(new RequestResult(i, baseTime, 20.0, 200, true, null));
+        }
+        results.Add(new RequestResult(1000, baseTime, 200.0, 500, false, "Internal Server Error"));
+
+        string html = HtmlResultExporter.Default.Generate(results);
+
+        // 环形图中两项都必须呈现
+        StringAssert.Contains(html, "HTTP 200");
+        StringAssert.Contains(html, "HTTP 500");
+        StringAssert.Contains(html, "path d=\"M");
     }
 
     /// <summary>

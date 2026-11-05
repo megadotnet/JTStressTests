@@ -235,8 +235,8 @@ public sealed class HtmlResultExporter : IResultExporter
         {
             double y = 30 + (180.0 / 4) * i;
             double tickVal = maxVal * (1.0 - (double)i / 4);
-            sb.AppendLine($"            <line x1=\"60\" y1=\"{y:F1}\" x2=\"570\" y2=\"{y:F1}\" stroke=\"#334155\" stroke-dasharray=\"3,3\" stroke-width=\"1\" />");
-            sb.AppendLine($"            <text x=\"50\" y=\"{(y + 4):F1}\" fill=\"#94a3b8\" font-size=\"11\" text-anchor=\"end\">{tickVal:F1}</text>");
+            sb.AppendLine(FormattableString.Invariant($"            <line x1=\"60\" y1=\"{y:F1}\" x2=\"570\" y2=\"{y:F1}\" stroke=\"#334155\" stroke-dasharray=\"3,3\" stroke-width=\"1\" />"));
+            sb.AppendLine(FormattableString.Invariant($"            <text x=\"50\" y=\"{(y + 4):F1}\" fill=\"#94a3b8\" font-size=\"11\" text-anchor=\"end\">{tickVal:F1}</text>"));
         }
 
         int count = items.Length;
@@ -253,11 +253,11 @@ public sealed class HtmlResultExporter : IResultExporter
             double y = 210 - barH;
 
             sb.AppendLine($"            <g class=\"bar-group\">");
-            sb.AppendLine($"              <rect x=\"{x:F1}\" y=\"{y:F1}\" width=\"{barWidth:F1}\" height=\"{barH:F1}\" fill=\"{item.Color}\" rx=\"4\">");
-            sb.AppendLine($"                <title>{item.Name}: {item.Value:F2} ms</title>");
+            sb.AppendLine(FormattableString.Invariant($"              <rect x=\"{x:F1}\" y=\"{y:F1}\" width=\"{barWidth:F1}\" height=\"{barH:F1}\" fill=\"{item.Color}\" rx=\"4\">"));
+            sb.AppendLine(FormattableString.Invariant($"                <title>{item.Name}: {item.Value:F2} ms</title>"));
             sb.AppendLine($"              </rect>");
-            sb.AppendLine($"              <text x=\"{xCenter:F1}\" y=\"{(y - 6):F1}\" fill=\"#e2e8f0\" font-size=\"11\" font-weight=\"bold\" text-anchor=\"middle\">{item.Value:F1}</text>");
-            sb.AppendLine($"              <text x=\"{xCenter:F1}\" y=\"230\" fill=\"#cbd5e1\" font-size=\"12\" font-weight=\"600\" text-anchor=\"middle\">{item.Name}</text>");
+            sb.AppendLine(FormattableString.Invariant($"              <text x=\"{xCenter:F1}\" y=\"{(y - 6):F1}\" fill=\"#e2e8f0\" font-size=\"11\" font-weight=\"bold\" text-anchor=\"middle\">{item.Value:F1}</text>"));
+            sb.AppendLine(FormattableString.Invariant($"              <text x=\"{xCenter:F1}\" y=\"230\" fill=\"#cbd5e1\" font-size=\"12\" font-weight=\"600\" text-anchor=\"middle\">{item.Name}</text>"));
             sb.AppendLine($"            </g>");
         }
 
@@ -308,53 +308,55 @@ public sealed class HtmlResultExporter : IResultExporter
         if (slices.Count == 0 || r.TotalRequests == 0)
         {
             // 无数据时的占位圆环
-            sb.AppendLine($"              <circle cx=\"100\" cy=\"100\" r=\"{(rOuter + rInner) / 2}\" fill=\"none\" stroke=\"#334155\" stroke-width=\"{rOuter - rInner}\" />");
+            sb.AppendLine(FormattableString.Invariant($"              <circle cx=\"100\" cy=\"100\" r=\"{(rOuter + rInner) / 2:F1}\" fill=\"none\" stroke=\"#334155\" stroke-width=\"{rOuter - rInner:F1}\" />"));
             sb.AppendLine("              <text x=\"100\" y=\"105\" text-anchor=\"middle\" fill=\"#64748b\" font-size=\"12\">无数据</text>");
         }
         else
         {
-            foreach (var slice in slices)
+            // 若只有单个类别切片（占 100%），直接绘制完整正圆环，规避 360° 弧线路径退化
+            if (slices.Count == 1)
             {
-                double fraction = (double)slice.Count / total;
-                double sweepAngle = fraction * 2.0 * Math.PI;
-
-                // 若只有单个切片且占满 100%
-                if (Math.Abs(fraction - 1.0) < 0.0001)
+                var single = slices[0];
+                sb.AppendLine(FormattableString.Invariant($"              <circle cx=\"100\" cy=\"100\" r=\"{(rOuter + rInner) / 2:F1}\" fill=\"none\" stroke=\"{single.Color}\" stroke-width=\"{rOuter - rInner:F1}\">"));
+                sb.AppendLine(FormattableString.Invariant($"                <title>{single.Label}: {single.Count} (100.0%)</title>"));
+                sb.AppendLine("              </circle>");
+            }
+            else
+            {
+                foreach (var slice in slices)
                 {
-                    sb.AppendLine($"              <circle cx=\"100\" cy=\"100\" r=\"{(rOuter + rInner) / 2}\" fill=\"none\" stroke=\"{slice.Color}\" stroke-width=\"{rOuter - rInner}\">");
-                    sb.AppendLine($"                <title>{slice.Label}: {slice.Count} ({fraction * 100:F1}%)</title>");
-                    sb.AppendLine("              </circle>");
-                    break;
+                    double fraction = (double)slice.Count / total;
+                    double sweepAngle = fraction * 2.0 * Math.PI;
+
+                    double nextAngle = currentAngle + sweepAngle;
+                    double x1Outer = cx + rOuter * Math.Cos(currentAngle);
+                    double y1Outer = cy + rOuter * Math.Sin(currentAngle);
+                    double x2Outer = cx + rOuter * Math.Cos(nextAngle);
+                    double y2Outer = cy + rOuter * Math.Sin(nextAngle);
+
+                    double x1Inner = cx + rInner * Math.Cos(nextAngle);
+                    double y1Inner = cy + rInner * Math.Sin(nextAngle);
+                    double x2Inner = cx + rInner * Math.Cos(currentAngle);
+                    double y2Inner = cy + rInner * Math.Sin(currentAngle);
+
+                    int largeArc = sweepAngle > Math.PI ? 1 : 0;
+
+                    string pathData = FormattableString.Invariant($"M {x1Outer:F2} {y1Outer:F2} ") +
+                                      FormattableString.Invariant($"A {rOuter:F2} {rOuter:F2} 0 {largeArc} 1 {x2Outer:F2} {y2Outer:F2} ") +
+                                      FormattableString.Invariant($"L {x1Inner:F2} {y1Inner:F2} ") +
+                                      FormattableString.Invariant($"A {rInner:F2} {rInner:F2} 0 {largeArc} 0 {x2Inner:F2} {y2Inner:F2} Z");
+
+                    sb.AppendLine($"              <path d=\"{pathData}\" fill=\"{slice.Color}\">");
+                    sb.AppendLine(FormattableString.Invariant($"                <title>{slice.Label}: {slice.Count} ({fraction * 100:F1}%)</title>"));
+                    sb.AppendLine("              </path>");
+
+                    currentAngle = nextAngle;
                 }
-
-                double nextAngle = currentAngle + sweepAngle;
-                double x1Outer = cx + rOuter * Math.Cos(currentAngle);
-                double y1Outer = cy + rOuter * Math.Sin(currentAngle);
-                double x2Outer = cx + rOuter * Math.Cos(nextAngle);
-                double y2Outer = cy + rOuter * Math.Sin(nextAngle);
-
-                double x1Inner = cx + rInner * Math.Cos(nextAngle);
-                double y1Inner = cy + rInner * Math.Sin(nextAngle);
-                double x2Inner = cx + rInner * Math.Cos(currentAngle);
-                double y2Inner = cy + rInner * Math.Sin(currentAngle);
-
-                int largeArc = sweepAngle > Math.PI ? 1 : 0;
-
-                string pathData = $"M {x1Outer:F2} {y1Outer:F2} " +
-                                  $"A {rOuter:F2} {rOuter:F2} 0 {largeArc} 1 {x2Outer:F2} {y2Outer:F2} " +
-                                  $"L {x1Inner:F2} {y1Inner:F2} " +
-                                  $"A {rInner:F2} {rInner:F2} 0 {largeArc} 0 {x2Inner:F2} {y2Inner:F2} Z";
-
-                sb.AppendLine($"              <path d=\"{pathData}\" fill=\"{slice.Color}\">");
-                sb.AppendLine($"                <title>{slice.Label}: {slice.Count} ({fraction * 100:F1}%)</title>");
-                sb.AppendLine("              </path>");
-
-                currentAngle = nextAngle;
             }
 
             // 中心圆环文本
-            sb.AppendLine($"              <text x=\"100\" y=\"95\" text-anchor=\"middle\" fill=\"#94a3b8\" font-size=\"11\">成功率</text>");
-            sb.AppendLine($"              <text x=\"100\" y=\"116\" text-anchor=\"middle\" fill=\"#f8fafc\" font-size=\"16\" font-weight=\"bold\">{r.SuccessRate:F1}%</text>");
+            sb.AppendLine("              <text x=\"100\" y=\"95\" text-anchor=\"middle\" fill=\"#94a3b8\" font-size=\"11\">成功率</text>");
+            sb.AppendLine(FormattableString.Invariant($"              <text x=\"100\" y=\"116\" text-anchor=\"middle\" fill=\"#f8fafc\" font-size=\"16\" font-weight=\"bold\">{r.SuccessRate:F1}%</text>"));
         }
 
         sb.AppendLine("            </svg>");
@@ -445,9 +447,9 @@ public sealed class HtmlResultExporter : IResultExporter
             double tickMs = maxLatency * (1.0 - (double)i / 4.0);
             double tickRps = maxRps * (1.0 - (double)i / 4.0);
 
-            sb.AppendLine($"            <line x1=\"{padLeft}\" y1=\"{y:F1}\" x2=\"{padLeft + plotW}\" y2=\"{y:F1}\" stroke=\"#334155\" stroke-dasharray=\"2,3\" stroke-width=\"1\" />");
-            sb.AppendLine($"            <text x=\"{padLeft - 10}\" y=\"{(y + 4):F1}\" fill=\"#38bdf8\" font-size=\"10\" text-anchor=\"end\">{tickMs:F0}ms</text>");
-            sb.AppendLine($"            <text x=\"{padLeft + plotW + 10}\" y=\"{(y + 4):F1}\" fill=\"#34d399\" font-size=\"10\" text-anchor=\"start\">{tickRps:F0} rps</text>");
+            sb.AppendLine(FormattableString.Invariant($"            <line x1=\"{padLeft}\" y1=\"{y:F1}\" x2=\"{padLeft + plotW}\" y2=\"{y:F1}\" stroke=\"#334155\" stroke-dasharray=\"2,3\" stroke-width=\"1\" />"));
+            sb.AppendLine(FormattableString.Invariant($"            <text x=\"{padLeft - 10}\" y=\"{(y + 4):F1}\" fill=\"#38bdf8\" font-size=\"10\" text-anchor=\"end\">{tickMs:F0}ms</text>"));
+            sb.AppendLine(FormattableString.Invariant($"            <text x=\"{padLeft + plotW + 10}\" y=\"{(y + 4):F1}\" fill=\"#34d399\" font-size=\"10\" text-anchor=\"start\">{tickRps:F0} rps</text>"));
         }
 
         // 计算点集坐标
@@ -459,7 +461,7 @@ public sealed class HtmlResultExporter : IResultExporter
         var rpsPoints = new List<string>();
         var rpsArea = new StringBuilder();
 
-        rpsArea.Append($"{padLeft},{padTop + plotH} ");
+        rpsArea.Append(FormattableString.Invariant($"{padLeft},{padTop + plotH} "));
 
         for (int i = 0; i < totalBuckets; i++)
         {
@@ -470,13 +472,13 @@ public sealed class HtmlResultExporter : IResultExporter
             double yMax = padTop + plotH - (b.MaxMs / maxLatency) * plotH;
             double yRps = padTop + plotH - ((double)b.Count / maxRps) * plotH;
 
-            avgPoints.Add($"{x:F1},{yAvg:F1}");
-            maxPoints.Add($"{x:F1},{yMax:F1}");
-            rpsPoints.Add($"{x:F1},{yRps:F1}");
-            rpsArea.Append($"{x:F1},{yRps:F1} ");
+            avgPoints.Add(FormattableString.Invariant($"{x:F1},{yAvg:F1}"));
+            maxPoints.Add(FormattableString.Invariant($"{x:F1},{yMax:F1}"));
+            rpsPoints.Add(FormattableString.Invariant($"{x:F1},{yRps:F1}"));
+            rpsArea.Append(FormattableString.Invariant($"{x:F1},{yRps:F1} "));
         }
 
-        rpsArea.Append($"{padLeft + plotW},{padTop + plotH}");
+        rpsArea.Append(FormattableString.Invariant($"{padLeft + plotW},{padTop + plotH}"));
 
         // 渲染 RPS 背景面积与趋势
         sb.AppendLine($"            <polygon points=\"{rpsArea}\" fill=\"#34d399\" fill-opacity=\"0.15\" />");
@@ -495,14 +497,14 @@ public sealed class HtmlResultExporter : IResultExporter
             double x = padLeft + (totalBuckets > 1 ? i * stepX : plotW / 2.0);
             double yAvg = padTop + plotH - (b.AvgMs / maxLatency) * plotH;
 
-            sb.AppendLine($"            <circle cx=\"{x:F1}\" cy=\"{yAvg:F1}\" r=\"3.5\" fill=\"#38bdf8\">");
-            sb.AppendLine($"              <title>时间: +{b.Second}s | 平均耗时: {b.AvgMs:F2}ms | 最大: {b.MaxMs:F2}ms | 请求: {b.Count} reqs</title>");
+            sb.AppendLine(FormattableString.Invariant($"            <circle cx=\"{x:F1}\" cy=\"{yAvg:F1}\" r=\"3.5\" fill=\"#38bdf8\">"));
+            sb.AppendLine(FormattableString.Invariant($"              <title>时间: +{b.Second}s | 平均耗时: {b.AvgMs:F2}ms | 最大: {b.MaxMs:F2}ms | 请求: {b.Count} reqs</title>"));
             sb.AppendLine("            </circle>");
 
             // X 轴时间刻度文字（适量采样打印，避免重叠）
             if (i == 0 || i == totalBuckets - 1 || i % Math.Max(1, totalBuckets / 6) == 0)
             {
-                sb.AppendLine($"            <text x=\"{x:F1}\" y=\"{padTop + plotH + 18}\" fill=\"#94a3b8\" font-size=\"10\" text-anchor=\"middle\">+{b.Second}s</text>");
+                sb.AppendLine(FormattableString.Invariant($"            <text x=\"{x:F1}\" y=\"{padTop + plotH + 18}\" fill=\"#94a3b8\" font-size=\"10\" text-anchor=\"middle\">+{b.Second}s</text>"));
             }
         }
 
@@ -560,11 +562,11 @@ public sealed class HtmlResultExporter : IResultExporter
             if (barH < 2 && c.Count > 0) barH = 2;
             double barY = startY + chartH - barH;
 
-            sb.AppendLine($"            <rect x=\"{colX:F1}\" y=\"{barY:F1}\" width=\"{barWidth:F1}\" height=\"{barH:F1}\" fill=\"{c.Color}\" rx=\"4\">");
-            sb.AppendLine($"              <title>{c.Label}: {c.Count} 次 ({((double)c.Count / list.Count) * 100:F1}%)</title>");
+            sb.AppendLine(FormattableString.Invariant($"            <rect x=\"{colX:F1}\" y=\"{barY:F1}\" width=\"{barWidth:F1}\" height=\"{barH:F1}\" fill=\"{c.Color}\" rx=\"4\">"));
+            sb.AppendLine(FormattableString.Invariant($"              <title>{WebUtility.HtmlEncode(c.Label)}: {c.Count} 次 ({((double)c.Count / list.Count) * 100:F1}%)</title>"));
             sb.AppendLine("            </rect>");
-            sb.AppendLine($"            <text x=\"{(colX + barWidth / 2):F1}\" y=\"{(barY - 5):F1}\" fill=\"#f1f5f9\" font-size=\"11\" font-weight=\"bold\" text-anchor=\"middle\">{c.Count}</text>");
-            sb.AppendLine($"            <text x=\"{(colX + barWidth / 2):F1}\" y=\"{(startY + chartH + 18):F1}\" fill=\"#94a3b8\" font-size=\"11\" text-anchor=\"middle\">{c.Label}</text>");
+            sb.AppendLine(FormattableString.Invariant($"            <text x=\"{(colX + barWidth / 2):F1}\" y=\"{(barY - 5):F1}\" fill=\"#f1f5f9\" font-size=\"11\" font-weight=\"bold\" text-anchor=\"middle\">{c.Count}</text>"));
+            sb.AppendLine(FormattableString.Invariant($"            <text x=\"{(colX + barWidth / 2):F1}\" y=\"{(startY + chartH + 18):F1}\" fill=\"#94a3b8\" font-size=\"11\" text-anchor=\"middle\">{WebUtility.HtmlEncode(c.Label)}</text>"));
         }
 
         sb.AppendLine("          </svg>");
@@ -630,10 +632,8 @@ public sealed class HtmlResultExporter : IResultExporter
         sb.AppendLine("          </thead>");
         sb.AppendLine("          <tbody>");
 
-        int sampleCount = 0;
-        foreach (var r in list.OrderBy(r => r.Index))
+        foreach (var r in list.Take(100).OrderBy(r => r.Index))
         {
-            if (++sampleCount > 100) break;
 
             string statusTag = r.StatusCode.HasValue
                 ? $"<span class=\"status-tag {(r.StatusCode.Value is >= 200 and < 300 ? "status-ok" : "status-fail")}\">{r.StatusCode.Value}</span>"
