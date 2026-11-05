@@ -24,9 +24,14 @@ public sealed class CommandLineOptions
     public int Duration { get; set; } = 60;
 
     /// <summary>
-    /// 获取或设置 CSV 结果输出文件路径，若为空则不执行结果导出
+    /// 获取或设置结果输出文件路径（支持 .csv 与 .html 扩展名自动匹配），若为空则不执行结果导出
     /// </summary>
     public string OutputPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 获取或设置可视化 HTML 报告输出文件路径，若为空则不单独导出 HTML 报告
+    /// </summary>
+    public string HtmlPath { get; set; } = string.Empty;
 
     /// <summary>
     /// 获取或设置 HTTP 请求方法（例如 GET, POST, PUT, DELETE），默认值为 "POST"

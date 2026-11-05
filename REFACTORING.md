@@ -53,12 +53,14 @@
 │
 ├── Export/                            # 压测数据导出领域模块
 │   ├── IResultExporter.cs             # 导出器策略接口 (策略模式)
-│   └── CsvResultExporter.cs           # CSV 格式导出策略实现
+│   ├── CsvResultExporter.cs           # CSV 格式导出策略实现
+│   └── HtmlResultExporter.cs          # HTML 可视化分析报告导出策略实现
 │
 ├── Services/                          # [兼容垫片层] 保持与历史代码及调用方 100% 兼容
 │   ├── CommandLineParser.cs
 │   ├── ConfigLoader.cs
 │   ├── CsvExporter.cs
+│   ├── HtmlExporter.cs
 │   ├── RequestBuilder.cs
 │   ├── StatisticsCalculator.cs
 │   └── StressTestEngine.cs
@@ -202,7 +204,7 @@ public interface IResultExporter
 
 | 模块与类 | 应用的设计模式 | SOLID 原则体现 | 优势说明 |
 | :--- | :--- | :--- | :--- |
-| `IResultExporter` / `CsvResultExporter` | **策略模式 (Strategy Pattern)** | OCP (开闭原则), SRP (单一职责) | 后续扩展 JSON、Excel 或 Markdown 导出时，只需实现 `IResultExporter` 即可直接插拔，无需修改调用层逻辑。 |
+| `IResultExporter` / `CsvResultExporter` / `HtmlResultExporter` | **策略模式 (Strategy Pattern)** | OCP (开闭原则), SRP (单一职责) | 原生支持 CSV 与可视化 HTML 导出；后续扩展 JSON、Excel 时只需实现 `IResultExporter` 即可直接插拔，无需修改调用层逻辑。 |
 | `IReportPrinter` / `ConsoleReportPrinter` | **策略模式 (Strategy Pattern)** | DIP (依赖倒置), SRP (单一职责) | 将报告格式化展示与计算分离，可轻松替换为文件输出、GUI 视图或 Webhook 策略。 |
 | `IHttpClientFactory` / `SocketsHttpClientFactory` | **抽象工厂/工厂模式 (Factory Pattern)** | DIP (依赖倒置), SRP (单一职责) | 将底层的连接池生命周期、超时策略与压测引擎解耦，便于配置注入和针对极端高并发场景的独立参数调优。 |
 | `IRequestBuilder` / `RequestBuilder` | **构建者/适配器模式 (Builder/Adapter)** | SRP (单一职责) | 将复杂的请求头映射、UTF-8 编码与 Content-Type 装配逻辑与并发调用调度解耦。 |
