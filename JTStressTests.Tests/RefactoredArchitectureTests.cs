@@ -1,3 +1,11 @@
+// ============================================================================
+// 文件名称: RefactoredArchitectureTests.cs
+// 核心功能: 针对重构后基于 SOLID 原则与接口解耦架构（抽象接口、依赖倒置、策略模式与工厂模式）的单元测试套件
+// 创建时间: 2026-11-05
+// 维护人员: megadotnet
+// 核心依赖: Moq, Microsoft.VisualStudio.TestTools.UnitTesting, JTStressTests.Cli, JTStressTests.Configuration, JTStressTests.Engine, JTStressTests.Export, JTStressTests.Http, JTStressTests.Statistics
+// ============================================================================
+
 using System.Net;
 using System.Text;
 using JTStressTests.Cli;
@@ -12,9 +20,15 @@ using Moq.Protected;
 
 namespace JTStressTests.Tests;
 
+/// <summary>
+/// 重构后新领域架构与设计模式单元测试类
+/// </summary>
 [TestClass]
 public sealed class RefactoredArchitectureTests
 {
+    /// <summary>
+    /// 验证 CommandLineParser 默认单例正确实现 ICommandLineParser 接口并支持参数解析
+    /// </summary>
     [TestMethod]
     public void CommandLineParser_DefaultInstance_ImplementsInterface()
     {
@@ -26,6 +40,9 @@ public sealed class RefactoredArchitectureTests
         Assert.AreEqual(15, options.Duration);
     }
 
+    /// <summary>
+    /// 验证 ConfigLoader 默认单例正确实现 IConfigLoader 接口并执行配置覆盖合并
+    /// </summary>
     [TestMethod]
     public void ConfigLoader_Merge_AppliesOverridesCorrectly()
     {
@@ -51,6 +68,9 @@ public sealed class RefactoredArchitectureTests
         Assert.AreEqual("V2", merged.Headers["H2"]);
     }
 
+    /// <summary>
+    /// 验证 SocketsHttpClientFactory 工厂能够根据指定参数成功构建超时配置生效的 HttpClient
+    /// </summary>
     [TestMethod]
     public void SocketsHttpClientFactory_CreatesClientWithConfiguredSettings()
     {
@@ -65,6 +85,9 @@ public sealed class RefactoredArchitectureTests
         Assert.AreEqual(TimeSpan.FromSeconds(15), client.Timeout);
     }
 
+    /// <summary>
+    /// 验证 CsvResultExporter 策略实现类正确实现 IResultExporter 契约并生成有效 CSV 字符串
+    /// </summary>
     [TestMethod]
     public void CsvResultExporter_ImplementsIResultExporter()
     {
@@ -81,6 +104,9 @@ public sealed class RefactoredArchitectureTests
         StringAssert.Contains(csv, "1,2026-01-01T00:00:00.0000000Z,12.34,200,true,");
     }
 
+    /// <summary>
+    /// 验证 ConsoleReportPrinter 策略实现类正确实现 IReportPrinter 契约并向输出流打印格式化报告
+    /// </summary>
     [TestMethod]
     public void ConsoleReportPrinter_OutputsFormattedReport()
     {
@@ -121,6 +147,9 @@ public sealed class RefactoredArchitectureTests
         }
     }
 
+    /// <summary>
+    /// 验证 StressTestEngine 支持通过依赖倒置注入自定义的 IRequestBuilder Mock 实例并正确执行调用
+    /// </summary>
     [TestMethod]
     public async Task StressTestEngine_WithCustomRequestBuilder_ExecutesCorrectly()
     {

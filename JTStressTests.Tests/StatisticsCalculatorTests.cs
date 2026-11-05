@@ -1,12 +1,26 @@
+// ============================================================================
+// 文件名称: StatisticsCalculatorTests.cs
+// 核心功能: 统计指标计算器 StatisticsCalculator 单元测试套件，验证平均数、百分位线性插值与压测汇总报告聚合
+// 创建时间: 2026-11-05
+// 维护人员: megadotnet
+// 核心依赖: Microsoft.VisualStudio.TestTools.UnitTesting, JTStressTests.Models, JTStressTests.Services
+// ============================================================================
+
 using JTStressTests.Models;
 using JTStressTests.Services;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace JTStressTests.Tests;
 
+/// <summary>
+/// 统计计算器单元测试类
+/// </summary>
 [TestClass]
 public sealed class StatisticsCalculatorTests
 {
+    /// <summary>
+    /// 验证空列表计算平均值时返回 0.0
+    /// </summary>
     [TestMethod]
     public void Average_EmptyList_ReturnsZero()
     {
@@ -17,6 +31,9 @@ public sealed class StatisticsCalculatorTests
         Assert.AreEqual(0.0, result, 0.0001);
     }
 
+    /// <summary>
+    /// 验证非空列表能够精确计算算术平均值
+    /// </summary>
     [TestMethod]
     public void Average_PopulatedList_ReturnsCorrectAverage()
     {
@@ -30,6 +47,9 @@ public sealed class StatisticsCalculatorTests
         Assert.AreEqual(20.0, result, 0.0001);
     }
 
+    /// <summary>
+    /// 验证空列表计算百分位数时返回 0.0
+    /// </summary>
     [TestMethod]
     public void Percentile_EmptyList_ReturnsZero()
     {
@@ -40,6 +60,9 @@ public sealed class StatisticsCalculatorTests
         Assert.AreEqual(0.0, result, 0.0001);
     }
 
+    /// <summary>
+    /// 验证单元素集合计算任意百分位数均返回该元素本身
+    /// </summary>
     [TestMethod]
     public void Percentile_SingleItem_ReturnsSingleValue()
     {
@@ -53,6 +76,11 @@ public sealed class StatisticsCalculatorTests
         Assert.AreEqual(42.0, result, 0.0001);
     }
 
+    /// <summary>
+    /// 验证线性插值算法对多元素数组计算 Min(P0)、P25、P50(中位数)、P75 及 Max(P100) 的精确性
+    /// </summary>
+    /// <param name="percentile">目标百分位数比例</param>
+    /// <param name="expected">预期的插值耗时结果</param>
     [TestMethod]
     [DataRow(0, 10.0, DisplayName = "Percentile 0 (Min)")]
     [DataRow(25, 17.5, DisplayName = "Percentile 25")]
@@ -61,10 +89,10 @@ public sealed class StatisticsCalculatorTests
     [DataRow(100, 40.0, DisplayName = "Percentile 100 (Max)")]
     public void Percentile_MultipleValues_ComputesLinearInterpolationCorrectly(double percentile, double expected)
     {
-        // Arrange: 4 values: 10, 20, 30, 40
+        // Arrange: 4 个数据点: 10, 20, 30, 40
         // rank = (4 - 1) * (percentile / 100) = 3 * (percentile / 100)
-        // For 50%: rank = 1.5 -> lower=1 (20), upper=2 (30), frac=0.5 -> 20 + 10*0.5 = 25.0
-        // For 25%: rank = 0.75 -> lower=0 (10), upper=1 (20), frac=0.75 -> 10 + 10*0.75 = 17.5
+        // 比如 50%: rank = 1.5 -> lower=1 (20), upper=2 (30), frac=0.5 -> 20 + 10*0.5 = 25.0
+        // 比如 25%: rank = 0.75 -> lower=0 (10), upper=1 (20), frac=0.75 -> 10 + 10*0.75 = 17.5
         var values = new[] { 10.0, 20.0, 30.0, 40.0 };
 
         // Act
@@ -74,6 +102,9 @@ public sealed class StatisticsCalculatorTests
         Assert.AreEqual(expected, actual, 0.0001);
     }
 
+    /// <summary>
+    /// 验证结果集为空时生成各项指标清零的安全报告对象
+    /// </summary>
     [TestMethod]
     public void GenerateReport_EmptyResults_ProducesZeroedReport()
     {
@@ -93,6 +124,9 @@ public sealed class StatisticsCalculatorTests
         Assert.IsEmpty(report.ExceptionCounts);
     }
 
+    /// <summary>
+    /// 验证混合成功与异常的结果集合能精确统计成功率、QPS、极值及状态码与异常分布
+    /// </summary>
     [TestMethod]
     public void GenerateReport_MixedResults_ComputesMetricsAccurately()
     {
@@ -120,16 +154,19 @@ public sealed class StatisticsCalculatorTests
         Assert.AreEqual(10.0, report.MinMs, 0.0001);
         Assert.AreEqual(40.0, report.MaxMs, 0.0001);
 
-        // Status code counts
+        // 状态码计数断言
         Assert.AreEqual(2, report.StatusCodeCounts[200]);
         Assert.AreEqual(1, report.StatusCodeCounts[500]);
         Assert.IsFalse(report.StatusCodeCounts.ContainsKey(0));
 
-        // Exception counts (grouped by prefix before colon)
+        // 异常前缀聚合断言
         Assert.AreEqual(1, report.ExceptionCounts["HttpRequestException"]);
         Assert.AreEqual(1, report.ExceptionCounts["TaskCanceledException"]);
     }
 
+    /// <summary>
+    /// 验证 PrintReport 方法能够正常执行并将各项关键指标格式化打印至标准控制台
+    /// </summary>
     [TestMethod]
     public void PrintReport_ExecutesWithoutErrorAndOutputsMetrics()
     {
