@@ -27,7 +27,8 @@
 | **`CsvExporterTests`** | CSV 数据导出与转义 (`CsvExporter`) | - CSV 字段特殊字符转义 (`EscapeCsv` 对逗号、双引号、换行符 `\n`、`\r\n` 转义)<br>- 空结果输出标准 CSV 标题行<br>- 结果按 `Index` 升序排序与时间戳 ISO 格式化<br>- 导出结果文件写入磁盘与校验 |
 | **`StressTestEngineTests`** | 并发压测执行引擎 (`StressTestEngine`) | - 构造参数非空契约校验<br>- 默认 HttpClient 实例生成与超时配置<br>- 基于 Mock `HttpMessageHandler` 模拟并发请求接收、状态码记录与响应流丢弃 (`CopyToAsync(Stream.Null)`)<br>- 混合异常模拟 (HTTP 500、网络 `HttpRequestException` 等) 结果采集与计数<br>- 提前触发 `CancellationToken` 平滑优雅退出与无死锁保障 |
 | **`ModelTests`** | 数据传输模型 (`Models`) | - `RequestResult` 构造与只读属性验证<br>- `AppConfig`, `CommandLineOptions`, `StressTestReport` 属性赋值与序列化完整性 |
-| **`RefactoredArchitectureTests`** | 重构抽象接口与设计模式实现 | - `ICommandLineParser`, `IConfigLoader` 接口契约与合并逻辑<br>- `SocketsHttpClientFactory` 工厂实现与客户端配置<br>- `CsvResultExporter` 策略实现与标准输出格式<br>- `ConsoleReportPrinter` 报告输出策略<br>- `StressTestEngine` 依赖注入 `IRequestBuilder` 协作验证 |
+| **`RefactoredArchitectureTests`** | 重构抽象接口与设计模式实现 | - `ICommandLineParser`, `IConfigLoader` 接口契约与合并逻辑<br>- `SocketsHttpClientFactory` 工厂实现与客户端配置<br>- `CsvResultExporter` 与 `HtmlResultExporter` 策略实现与标准输出格式<br>- `ConsoleReportPrinter` 报告输出策略<br>- `StressTestEngine` 依赖注入 `IRequestBuilder` 协作验证 |
+| **`HtmlExporterTests`** | HTML 可视化报告导出与图表呈现验证 | - `HtmlResultExporter` 契约与文件写入<br>- 耗时分位数柱状图、状态码环形图、时间序列折线与分布直方图渲染<br>- XSS 安全防范与特殊字符转义<br>- `--html` 命令行参数与向后兼容门面 |
 
 ---
 

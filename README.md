@@ -229,7 +229,8 @@ All CLI parameters can be provided via space notation (`--flag value`) or equals
 | `--method` | string | `POST` | HTTP request method (e.g., `GET`, `POST`, `PUT`, `DELETE`, `PATCH`). |
 | `--body` | string | Read from `appsettings.json` | Request payload body string. |
 | `--header` | string | Read from `appsettings.json` | Custom HTTP header in `Name: Value` format. Can be repeated multiple times. |
-| `--output` | string | Empty (disabled) | Destination file path to export request records as CSV. |
+| `--output` | string | Empty (disabled) | Destination file path to export request records (.csv or .html auto-detected). |
+| `--html` | string | Empty (disabled) | Destination file path to export a self-contained visual HTML report with interactive charts. |
 | `--server` | flag | `false` | Runs the application in Cloud-Native Web Daemon mode serving health checks and REST endpoints. |
 | `--port` | int | `8080` | Port to bind for the Web Daemon server (can also be set via `PORT` environment variable). |
 | `--help`, `-h` | flag | `false` | Displays command usage and available options. |
@@ -283,7 +284,8 @@ The project is structured according to SOLID principles, decoupling concerns int
 │
 ├── Export/                            # Metric Persistence & Export Module
 │   ├── IResultExporter.cs             # Persistence exporter strategy interface (Strategy Pattern)
-│   └── CsvResultExporter.cs           # RFC-compliant CSV exporter with escaping
+│   ├── CsvResultExporter.cs           # RFC-compliant CSV exporter with escaping
+│   └── HtmlResultExporter.cs          # Self-contained visual HTML report exporter with vector charts
 │
 ├── Services/                          # [Backward Compatibility Facade Layer]
 │   ├── CommandLineParser.cs           # Static facade forwarding to Cli domain
@@ -291,7 +293,8 @@ The project is structured according to SOLID principles, decoupling concerns int
 │   ├── RequestBuilder.cs              # Static facade forwarding to Http domain
 │   ├── StressTestEngine.cs            # Facade forwarding to Engine domain
 │   ├── StatisticsCalculator.cs        # Static facade forwarding to Statistics domain
-│   └── CsvExporter.cs                 # Static facade forwarding to Export domain
+│   ├── CsvExporter.cs                 # Static facade forwarding to Export domain
+│   └── HtmlExporter.cs                # Static facade forwarding to Export domain
 │
 ├── Models/                            # [Backward Compatibility Model Layer]
 │   ├── AppConfig.cs                   # Type aliasing & implicit operators for AppConfig

@@ -29,7 +29,8 @@ IHttpClientFactory clientFactory = SocketsHttpClientFactory.Default;
 IRequestBuilder requestBuilder = RequestBuilder.Default;
 IStatisticsCalculator statsCalculator = StatisticsCalculator.Default;
 IReportPrinter reportPrinter = ConsoleReportPrinter.Default;
-IResultExporter resultExporter = CsvResultExporter.Default;
+IResultExporter csvExporter = CsvResultExporter.Default;
+HtmlResultExporter htmlExporter = HtmlResultExporter.Default;
 
 // ---------------- 2. 命令行参数解析 ----------------
 CommandLineOptions options = cliParser.Parse(args);
@@ -134,12 +135,31 @@ var (results, elapsedSeconds) = await engine.RunAsync(
 var report = statsCalculator.GenerateReport(results, elapsedSeconds);
 reportPrinter.Print(report);
 
-// ---------------- 8. 压测详细结果导出 (若指定了 --output 参数) ----------------
+// ---------------- 8. 压测详细结果与可视化报告导出 ----------------
+// 处理 --output 参数（根据文件后缀自动判定格式）
 if (!string.IsNullOrEmpty(options.OutputPath))
 {
-    resultExporter.ExportToFile(options.OutputPath, results);
+    string ext = Path.GetExtension(options.OutputPath).ToLowerInvariant();
+    if (ext == ".html" || ext == ".htm")
+    {
+        htmlExporter.ExportToFile(options.OutputPath, results, "JTStressTests 性能测试可视化分析报告", report);
+        Console.WriteLine();
+        Console.WriteLine($"可视化 HTML 报告已导出: {options.OutputPath}");
+    }
+    else
+    {
+        csvExporter.ExportToFile(options.OutputPath, results);
+        Console.WriteLine();
+        Console.WriteLine($"CSV 已导出: {options.OutputPath}");
+    }
+}
+
+// 处理独立的 --html 参数导出可视化网页报告
+if (!string.IsNullOrEmpty(options.HtmlPath))
+{
+    htmlExporter.ExportToFile(options.HtmlPath, results, "JTStressTests 性能测试可视化分析报告", report);
     Console.WriteLine();
-    Console.WriteLine($"CSV 已导出: {options.OutputPath}");
+    Console.WriteLine($"可视化 HTML 报告已导出: {options.HtmlPath}");
 }
 
 return 0;
