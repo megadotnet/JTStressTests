@@ -154,8 +154,8 @@ if (!string.IsNullOrEmpty(options.OutputPath))
     }
 }
 
-// 处理独立的 --html 参数导出可视化网页报告
-if (!string.IsNullOrEmpty(options.HtmlPath))
+// 处理独立的 --html 参数导出可视化网页报告（排除与 --output 完全相同的重复导出）
+if (!string.IsNullOrEmpty(options.HtmlPath) && !string.Equals(options.HtmlPath, options.OutputPath, StringComparison.OrdinalIgnoreCase))
 {
     htmlExporter.ExportToFile(options.HtmlPath, results, "JTStressTests 性能测试可视化分析报告", report);
     Console.WriteLine();

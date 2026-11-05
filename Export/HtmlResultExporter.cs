@@ -130,17 +130,20 @@ public sealed class HtmlResultExporter : IResultExporter
 
     /// <summary>
     /// 将压测结果集合格式化并持久化写入到指定的目标 HTML 磁盘文件（使用 UTF-8 编码）
+    /// 若输出目录不存在则自动进行级联创建
     /// </summary>
     /// <param name="outputPath">目标输出文件的绝对或相对路径</param>
     /// <param name="results">压测请求结果枚举集合</param>
     public void ExportToFile(string outputPath, IEnumerable<RequestResult> results)
     {
+        EnsureDirectoryExists(outputPath);
         string content = Generate(results);
         File.WriteAllText(outputPath, content, new UTF8Encoding(false));
     }
 
     /// <summary>
     /// 带自定义标题与预计算报告的持久化文件导出方法重载
+    /// 若输出目录不存在则自动进行级联创建
     /// </summary>
     /// <param name="outputPath">目标文件路径</param>
     /// <param name="results">压测请求结果枚举集合</param>
@@ -148,8 +151,22 @@ public sealed class HtmlResultExporter : IResultExporter
     /// <param name="report">统计报告模型</param>
     public void ExportToFile(string outputPath, IEnumerable<RequestResult> results, string? title, StressTestReport? report)
     {
+        EnsureDirectoryExists(outputPath);
         string content = Generate(results, title, report);
         File.WriteAllText(outputPath, content, new UTF8Encoding(false));
+    }
+
+    /// <summary>
+    /// 确保输出文件的上级父目录存在，若不存在则级联自动创建
+    /// </summary>
+    /// <param name="filePath">输出文件路径</param>
+    private static void EnsureDirectoryExists(string filePath)
+    {
+        string? directory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
     }
 
     #region 内部图表与组件渲染逻辑
@@ -532,18 +549,28 @@ public sealed class HtmlResultExporter : IResultExporter
             return;
         }
 
-        // 定义 6 个经典响应时间段
-        var brackets = new (string Label, Func<double, bool> Predicate, string Color)[]
+        // 定义 6 个经典响应时间段与计数器，采用单遍循环 O(N) 累加
+        int c0 = 0, c1 = 0, c2 = 0, c3 = 0, c4 = 0, c5 = 0;
+        foreach (var r in list)
         {
-            ("< 50ms", ms => ms < 50, "#10b981"),
-            ("50-100ms", ms => ms >= 50 && ms < 100, "#3b82f6"),
-            ("100-300ms", ms => ms >= 100 && ms < 300, "#06b6d4"),
-            ("300-500ms", ms => ms >= 300 && ms < 500, "#f59e0b"),
-            ("500-1000ms", ms => ms >= 500 && ms < 1000, "#f97316"),
-            (">= 1000ms", ms => ms >= 1000, "#ef4444")
-        };
+            double ms = r.ElapsedMs;
+            if (ms < 50) c0++;
+            else if (ms < 100) c1++;
+            else if (ms < 300) c2++;
+            else if (ms < 500) c3++;
+            else if (ms < 1000) c4++;
+            else c5++;
+        }
 
-        var counts = brackets.Select(b => (b.Label, Count: list.Count(r => b.Predicate(r.ElapsedMs)), b.Color)).ToList();
+        var counts = new List<(string Label, int Count, string Color)>
+        {
+            ("< 50ms", c0, "#10b981"),
+            ("50-100ms", c1, "#3b82f6"),
+            ("100-300ms", c2, "#06b6d4"),
+            ("300-500ms", c3, "#f59e0b"),
+            ("500-1000ms", c4, "#f97316"),
+            (">= 1000ms", c5, "#ef4444")
+        };
         int maxCount = counts.Max(x => x.Count);
         if (maxCount <= 0) maxCount = 1;
 

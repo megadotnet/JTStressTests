@@ -197,13 +197,13 @@ public sealed class HtmlExporterTests
     }
 
     /// <summary>
-    /// 验证 ExportToFile 能够成功将 HTML 报表持久化落盘
+    /// 验证 ExportToFile 能够成功将 HTML 报表持久化落盘，且自动创建不存在的深层多级子目录
     /// </summary>
     [TestMethod]
-    public void ExportToFile_WritesExpectedHtmlFileToDisk()
+    public void ExportToFile_WritesExpectedHtmlFileToDisk_AndCreatesNestedDirectory()
     {
-        // Arrange
-        string filePath = Path.Combine(_tempDirectory, "report.html");
+        // Arrange: 设置未事先创建的多层嵌套子目录
+        string filePath = Path.Combine(_tempDirectory, "deep", "nested", "reports", "report.html");
         var baseTime = new DateTime(2026, 11, 5, 12, 0, 0, DateTimeKind.Utc);
         var results = new List<RequestResult>
         {
