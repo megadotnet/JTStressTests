@@ -1,0 +1,42 @@
+# Version control & metadata
+.git/
+.gitignore
+.gitattributes
+
+# Build artifacts & compilation intermediate files
+**/bin/
+**/obj/
+**/TestResults/
+**/out/
+**/publish/
+
+# IDE & Editor configuration
+.idea/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local logs & temporary output
+*.log
+output/
+*.csv
+
+# Sensitive configuration & local secrets
+*.env
+*.env.*
+*.pfx
+*.key
+*.pem
+secrets/
+
+# Node.js dependencies & scripts (if any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Documentation & Markdown files unnecessary in build context
+*.md
+run-tests.sh

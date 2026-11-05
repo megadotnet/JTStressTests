@@ -114,6 +114,44 @@ public sealed class CommandLineParserTests
     }
 
     [TestMethod]
+    public void Parse_ServerFlag_SetsServerMode()
+    {
+        // Act
+        var options = CommandLineParser.Parse(new[] { "--server" });
+
+        // Assert
+        Assert.IsFalse(options.HasError);
+        Assert.IsTrue(options.ServerMode);
+        Assert.AreEqual(8080, options.Port);
+    }
+
+    [TestMethod]
+    public void Parse_ServerFlagWithCustomPort_SetsServerModeAndPort()
+    {
+        // Act
+        var options = CommandLineParser.Parse(new[] { "--server", "--port", "9090" });
+
+        // Assert
+        Assert.IsFalse(options.HasError);
+        Assert.IsTrue(options.ServerMode);
+        Assert.AreEqual(9090, options.Port);
+    }
+
+    [TestMethod]
+    [DataRow("0", DisplayName = "Port zero")]
+    [DataRow("-1", DisplayName = "Port negative")]
+    [DataRow("70000", DisplayName = "Port out of range")]
+    [DataRow("abc", DisplayName = "Port non-numeric")]
+    public void Parse_InvalidPort_SetsHasError(string invalidPort)
+    {
+        // Act
+        var options = CommandLineParser.Parse(new[] { "--server", "--port", invalidPort });
+
+        // Assert
+        Assert.IsTrue(options.HasError);
+    }
+
+    [TestMethod]
     [DataRow("--concurrency", DisplayName = "Missing value for concurrency")]
     [DataRow("--duration", DisplayName = "Missing value for duration")]
     [DataRow("--url", DisplayName = "Missing value for url")]

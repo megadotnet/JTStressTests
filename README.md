@@ -168,10 +168,16 @@ cd .\publish-win
 
 #### Using Docker
 ```bash
-# 1. Build the production Docker container image
-docker build -t jt-stress-tests:latest .
+# 1. Build the multi-stage lightweight production Docker container image
+docker build -t jt-stress-tests:1.0.0 -t jt-stress-tests:latest .
 
-# 2. Run containerized benchmark with output mounted to local host directory
+# 2. Run in Cloud-Native Web Daemon mode (Non-root user 10001, port 8080)
+docker run -d --name jt-stress-service -p 8080:8080 jt-stress-tests:latest
+
+# Health check inspection
+curl http://127.0.0.1:8080/healthz
+
+# 3. Or run containerized benchmark CLI with output mounted to local host directory
 docker run --rm \
   -v "$(pwd)/output:/app/output" \
   jt-stress-tests:latest \
@@ -181,10 +187,31 @@ docker run --rm \
   --output /app/output/benchmark.csv
 ```
 
-#### Using Docker Compose (Distributed Multiple Nodes)
+#### Using Docker Compose (Local Development & Stack)
 ```bash
-# Launch multiple stress testing nodes defined in docker-compose.yaml
-docker compose up --build
+# Launch web daemon service alongside mock-target service
+docker compose up -d
+
+# Verify health status
+docker compose ps
+curl http://127.0.0.1:8080/healthz
+
+# Tear down environment
+docker compose down
+```
+
+#### Cloud-Native Kubernetes Deployment
+All production Kubernetes resources are provided under `k8s/`:
+- `deployment.yaml`: Enforces non-root execution (`runAsUser: 10001`), read-only root filesystem (`readOnlyRootFilesystem: true`), drops all Linux capabilities, and declares liveness, readiness, and startup probes.
+- `service.yaml`: ClusterIP service routing traffic to port 8080.
+- `ingress.yaml`: NGINX Ingress resource supporting TLS termination.
+- `hpa.yaml`: Horizontal Pod Autoscaler targeting CPU (75%) and Memory (80%) utilization.
+- `pvc.yaml`: Persistent volume claim for benchmark report persistence.
+- `configmap.yaml` & `secret.yaml`: Strict configuration and credential segregation.
+
+Deploy using Kustomize:
+```bash
+kubectl apply -k k8s/
 ```
 
 ---
@@ -202,6 +229,8 @@ All CLI parameters can be provided via space notation (`--flag value`) or equals
 | `--body` | string | Read from `appsettings.json` | Request payload body string. |
 | `--header` | string | Read from `appsettings.json` | Custom HTTP header in `Name: Value` format. Can be repeated multiple times. |
 | `--output` | string | Empty (disabled) | Destination file path to export request records as CSV. |
+| `--server` | flag | `false` | Runs the application in Cloud-Native Web Daemon mode serving health checks and REST endpoints. |
+| `--port` | int | `8080` | Port to bind for the Web Daemon server (can also be set via `PORT` environment variable). |
 | `--help`, `-h` | flag | `false` | Displays command usage and available options. |
 
 ---

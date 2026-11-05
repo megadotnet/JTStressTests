@@ -38,6 +38,21 @@ if (options.HasError)
     return 2;
 }
 
+using var cts = new CancellationTokenSource();
+Console.CancelKeyPress += (sender, e) =>
+{
+    e.Cancel = true;
+    cts.Cancel();
+};
+
+// ---------------- Web 服务守护进程模式 ----------------
+if (options.ServerMode)
+{
+    IWebServer webServer = WebServer.Default;
+    await webServer.RunAsync(options.Port, cts.Token);
+    return 0;
+}
+
 // ---------------- 加载配置文件 ----------------
 string baseConfigPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
 if (!File.Exists(baseConfigPath))
@@ -92,13 +107,6 @@ if (string.IsNullOrWhiteSpace(targetUrl))
 // ---------------- HttpClient 与引擎配置 ----------------
 using var http = clientFactory.CreateClient(options.Concurrency);
 IStressTestEngine engine = new StressTestEngine(http, requestBuilder);
-
-using var cts = new CancellationTokenSource();
-Console.CancelKeyPress += (sender, e) =>
-{
-    e.Cancel = true;
-    cts.Cancel();
-};
 
 var (results, elapsedSeconds) = await engine.RunAsync(
     options.Method,

@@ -25,12 +25,30 @@ public sealed class CommandLineParser : ICommandLineParser
         Console.WriteLine("  --method <string>     HTTP 方法 (默认 POST)");
         Console.WriteLine("  --body <string>       请求体");
         Console.WriteLine("  --header <string>     请求头，格式 Name: Value，可重复");
+        Console.WriteLine("  --server              以 Web 服务守护进程模式运行");
+        Console.WriteLine("  --port <int>          Web 服务监听端口 (默认 8080)");
         Console.WriteLine("  --help, -h            显示帮助");
     }
 
     public CommandLineOptions Parse(string[] args)
     {
         var options = new CommandLineOptions();
+
+        string portEnv = Environment.GetEnvironmentVariable("PORT") ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(portEnv) && int.TryParse(portEnv, NumberStyles.Integer, CultureInfo.InvariantCulture, out int envPort) && envPort > 0 && envPort <= 65535)
+        {
+            options.Port = envPort;
+        }
+
+        // 如果未显式提供命令行参数，且环境变量指示运行 server 模式，则开启 server mode
+        string webServerEnv = Environment.GetEnvironmentVariable("WEB_SERVER") ?? Environment.GetEnvironmentVariable("MODE") ?? string.Empty;
+        if (args.Length == 0 && (
+            string.Equals(webServerEnv, "true", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(webServerEnv, "server", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(webServerEnv, "1", StringComparison.OrdinalIgnoreCase)))
+        {
+            options.ServerMode = true;
+        }
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -49,7 +67,7 @@ public sealed class CommandLineParser : ICommandLineParser
             }
 
             string key;
-            string value;
+            string? value = null;
             int equalIndex = arg.IndexOf('=');
             if (equalIndex >= 0)
             {
@@ -59,6 +77,17 @@ public sealed class CommandLineParser : ICommandLineParser
             else
             {
                 key = arg.Substring(2);
+            }
+
+            string lowerKey = key.ToLowerInvariant();
+            if (lowerKey == "server")
+            {
+                options.ServerMode = true;
+                continue;
+            }
+
+            if (value == null)
+            {
                 if (i + 1 >= args.Length)
                 {
                     options.HasError = true;
@@ -67,7 +96,7 @@ public sealed class CommandLineParser : ICommandLineParser
                 value = args[++i];
             }
 
-            switch (key.ToLowerInvariant())
+            switch (lowerKey)
             {
                 case "concurrency":
                     if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int concurrency) || concurrency <= 0)
@@ -109,6 +138,16 @@ public sealed class CommandLineParser : ICommandLineParser
                         break;
                     }
                     options.Headers[value.Substring(0, colonIndex).Trim()] = value.Substring(colonIndex + 1).Trim();
+                    break;
+                case "port":
+                    if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int port) || port <= 0 || port > 65535)
+                    {
+                        options.HasError = true;
+                    }
+                    else
+                    {
+                        options.Port = port;
+                    }
                     break;
                 default:
                     options.HasError = true;

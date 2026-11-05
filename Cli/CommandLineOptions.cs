@@ -14,4 +14,6 @@ public sealed class CommandLineOptions
     public Dictionary<string, string> Headers { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public bool ShowHelp { get; set; }
     public bool HasError { get; set; }
+    public bool ServerMode { get; set; }
+    public int Port { get; set; } = 8080;
 }

@@ -12,6 +12,8 @@ public class CommandLineOptions
     public Dictionary<string, string> Headers { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public bool ShowHelp { get; set; }
     public bool HasError { get; set; }
+    public bool ServerMode { get; set; }
+    public int Port { get; set; } = 8080;
 
     public static implicit operator JTStressTests.Cli.CommandLineOptions(CommandLineOptions legacy)
     {
@@ -24,7 +26,9 @@ public class CommandLineOptions
             Url = legacy.Url,
             Body = legacy.Body,
             ShowHelp = legacy.ShowHelp,
-            HasError = legacy.HasError
+            HasError = legacy.HasError,
+            ServerMode = legacy.ServerMode,
+            Port = legacy.Port
         };
         foreach (var kvp in legacy.Headers)
         {
@@ -44,7 +48,9 @@ public class CommandLineOptions
             Url = modern.Url,
             Body = modern.Body,
             ShowHelp = modern.ShowHelp,
-            HasError = modern.HasError
+            HasError = modern.HasError,
+            ServerMode = modern.ServerMode,
+            Port = modern.Port
         };
         foreach (var kvp in modern.Headers)
         {
