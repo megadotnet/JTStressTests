@@ -1,0 +1,315 @@
+name: CI/CD Build and Package Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - 'release/**'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Deployment Environment'
+        required: false
+        default: 'Production'
+        type: choice
+        options:
+          - Development
+          - Staging
+          - Production
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+env:
+  DOTNET_VERSION_PRIMARY: '8.0.x'
+  DOTNET_VERSION_BUILD: '10.0.x'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: 'true'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  BUILD_CONFIGURATION: 'Release'
+  OUTPUT_DIR_FRAMEWORK: ${{ github.workspace }}/dist/backend/framework-dependent
+  OUTPUT_DIR_LINUX_X64: ${{ github.workspace }}/dist/backend/linux-x64
+  OUTPUT_DIR_WIN_X64: ${{ github.workspace }}/dist/backend/win-x64
+  OUTPUT_DIR_OSX_ARM64: ${{ github.workspace }}/dist/backend/osx-arm64
+  OUTPUT_DIR_WEB: ${{ github.workspace }}/dist/web/static
+
+jobs:
+  # ============================================================================
+  # 阶段 1: 依赖安装、代码规范校验与单元测试
+  # ============================================================================
+  quality-and-test:
+    name: Code Quality & Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码仓库
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 配置 .NET SDK 运行与构建环境
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            ${{ env.DOTNET_VERSION_PRIMARY }}
+            ${{ env.DOTNET_VERSION_BUILD }}
+
+      - name: 恢复与配置 NuGet 包缓存
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: 恢复项目依赖 (dotnet restore)
+        run: dotnet restore JTStressTests.sln --packages "${{ env.NUGET_PACKAGES }}"
+
+      - name: 代码格式与规范校验 (dotnet format)
+        run: |
+          echo "Executing code formatting & style rules verification..."
+          dotnet format JTStressTests.sln --verify-no-changes --verbosity normal
+
+      - name: 执行单元测试与代码覆盖率采集 (dotnet test)
+        run: |
+          mkdir -p ./TestResults
+          dotnet test JTStressTests.Tests/JTStressTests.Tests.csproj \
+            --configuration ${{ env.BUILD_CONFIGURATION }} \
+            --no-restore \
+            --logger "trx;LogFileName=test_results.trx" \
+            --results-directory ./TestResults \
+            --collect:"XPlat Code Coverage" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura,opencover
+
+      - name: 上传测试结果与覆盖率报告
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-and-coverage
+          path: |
+            ./TestResults/**/*.trx
+            ./TestResults/**/coverage.cobertura.xml
+            ./TestResults/**/coverage.opencover.xml
+          retention-days: 14
+
+  # ============================================================================
+  # 阶段 2: 后端生产环境构建、差异化打包与产物完整性校验
+  # ============================================================================
+  package-backend:
+    name: Backend Production Build & Validation
+    runs-on: ubuntu-latest
+    needs: quality-and-test
+
+    steps:
+      - name: 检出代码仓库
+        uses: actions/checkout@v4
+
+      - name: 配置 .NET SDK 环境
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            ${{ env.DOTNET_VERSION_PRIMARY }}
+            ${{ env.DOTNET_VERSION_BUILD }}
+
+      - name: 恢复 NuGet 包缓存
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: 恢复项目依赖
+        run: dotnet restore JTStressTests.csproj --packages "${{ env.NUGET_PACKAGES }}"
+
+      # ------------------------------------------------------------------------
+      # 差异化构建 1: 后端标准框架依赖包 (Framework-Dependent CLI / Daemon)
+      # ------------------------------------------------------------------------
+      - name: 构建标准框架依赖产物 (Framework-Dependent)
+        run: |
+          dotnet publish JTStressTests.csproj \
+            -c ${{ env.BUILD_CONFIGURATION }} \
+            --no-restore \
+            --self-contained false \
+            -o "${{ env.OUTPUT_DIR_FRAMEWORK }}"
+
+      # ------------------------------------------------------------------------
+      # 差异化构建 2: Linux x64 独立自包含单文件二进制产物 (Self-Contained)
+      # ------------------------------------------------------------------------
+      - name: 构建 Linux x64 单文件二进制 (Self-Contained Single-File)
+        run: |
+          dotnet publish JTStressTests.csproj \
+            -c ${{ env.BUILD_CONFIGURATION }} \
+            -r linux-x64 \
+            --self-contained true \
+            /p:PublishSingleFile=true \
+            /p:EnableCompressionInSingleFile=true \
+            -o "${{ env.OUTPUT_DIR_LINUX_X64 }}"
+
+      # ------------------------------------------------------------------------
+      # 差异化构建 3: Windows x64 独立自包含单文件二进制产物 (Self-Contained)
+      # ------------------------------------------------------------------------
+      - name: 构建 Windows x64 单文件二进制 (Self-Contained Single-File)
+        run: |
+          dotnet publish JTStressTests.csproj \
+            -c ${{ env.BUILD_CONFIGURATION }} \
+            -r win-x64 \
+            --self-contained true \
+            /p:PublishSingleFile=true \
+            /p:EnableCompressionInSingleFile=true \
+            -o "${{ env.OUTPUT_DIR_WIN_X64 }}"
+
+      # ------------------------------------------------------------------------
+      # 差异化构建 4: macOS ARM64 Apple Silicon 独立自包含单文件二进制产物
+      # ------------------------------------------------------------------------
+      - name: 构建 macOS ARM64 单文件二进制 (Self-Contained Single-File)
+        run: |
+          dotnet publish JTStressTests.csproj \
+            -c ${{ env.BUILD_CONFIGURATION }} \
+            -r osx-arm64 \
+            --self-contained true \
+            /p:PublishSingleFile=true \
+            /p:EnableCompressionInSingleFile=true \
+            -o "${{ env.OUTPUT_DIR_OSX_ARM64 }}"
+
+      # ------------------------------------------------------------------------
+      # 差异化构建 5: 前端及 Web 守护进程静态资产打包
+      # ------------------------------------------------------------------------
+      - name: 打包 Web 守护进程静态配置与资源资产
+        run: |
+          mkdir -p "${{ env.OUTPUT_DIR_WEB }}"
+          cp -r k8s docker-compose.yml "${{ env.OUTPUT_DIR_WEB }}/"
+          cat << 'EOF' > "${{ env.OUTPUT_DIR_WEB }}/version.json"
+          {
+            "name": "JTStressTests",
+            "version": "1.0.0",
+            "commit": "${{ github.sha }}",
+            "ref": "${{ github.ref }}",
+            "buildDateUtc": "${{ github.event.head_commit.timestamp || 'auto' }}"
+          }
+          EOF
+
+      # ------------------------------------------------------------------------
+      # 环节: 构建产物完整性与合规性严格校验 (Artifact Validation)
+      # ------------------------------------------------------------------------
+      - name: 执行构建产物完整性校验
+        run: |
+          echo "=========================================================="
+          echo "Validating Published Artifacts Integrity and Completeness"
+          echo "=========================================================="
+          set -e
+
+          # 1. 验证框架依赖产物路径与核心组件
+          test -d "${{ env.OUTPUT_DIR_FRAMEWORK }}" || { echo "ERROR: Framework-dependent dir missing!"; exit 1; }
+          test -f "${{ env.OUTPUT_DIR_FRAMEWORK }}/JTStressTests.dll" || { echo "ERROR: JTStressTests.dll missing!"; exit 1; }
+          test -f "${{ env.OUTPUT_DIR_FRAMEWORK }}/JTStressTests.runtimeconfig.json" || { echo "ERROR: runtimeconfig.json missing!"; exit 1; }
+          test -f "${{ env.OUTPUT_DIR_FRAMEWORK }}/appsettings.json" || { echo "ERROR: appsettings.json missing in framework dir!"; exit 1; }
+
+          # 2. 验证 Linux x64 单文件产物
+          test -d "${{ env.OUTPUT_DIR_LINUX_X64 }}" || { echo "ERROR: Linux output dir missing!"; exit 1; }
+          test -f "${{ env.OUTPUT_DIR_LINUX_X64 }}/JTStressTests" || { echo "ERROR: Linux executable missing!"; exit 1; }
+          chmod +x "${{ env.OUTPUT_DIR_LINUX_X64 }}/JTStressTests"
+          LINUX_BIN_SIZE=$(stat -c%s "${{ env.OUTPUT_DIR_LINUX_X64 }}/JTStressTests" 2>/dev/null || stat -f%z "${{ env.OUTPUT_DIR_LINUX_X64 }}/JTStressTests")
+          echo "Linux x64 binary size: ${LINUX_BIN_SIZE} bytes"
+          if [ "${LINUX_BIN_SIZE}" -lt 5000000 ]; then
+            echo "ERROR: Linux binary size is unusually small (<5MB)!"; exit 1
+          fi
+
+          # 3. 验证 Windows x64 单文件产物
+          test -d "${{ env.OUTPUT_DIR_WIN_X64 }}" || { echo "ERROR: Win x64 output dir missing!"; exit 1; }
+          test -f "${{ env.OUTPUT_DIR_WIN_X64 }}/JTStressTests.exe" || { echo "ERROR: Win executable missing!"; exit 1; }
+
+          # 4. 验证 macOS ARM64 单文件产物
+          test -d "${{ env.OUTPUT_DIR_OSX_ARM64 }}" || { echo "ERROR: macOS output dir missing!"; exit 1; }
+          test -f "${{ env.OUTPUT_DIR_OSX_ARM64 }}/JTStressTests" || { echo "ERROR: macOS executable missing!"; exit 1; }
+
+          # 5. 验证 Web/前端静态资源产物
+          test -f "${{ env.OUTPUT_DIR_WEB }}/version.json" || { echo "ERROR: Web version metadata missing!"; exit 1; }
+
+          # 6. 本机试运行自包含可执行程序验证 CLI 参数响应
+          echo "Testing Linux executable execution with --help flag..."
+          "${{ env.OUTPUT_DIR_LINUX_X64 }}/JTStressTests" --help
+
+          echo "All artifact verification checks passed successfully!"
+
+      # ------------------------------------------------------------------------
+      # 制品打包归档并上传
+      # ------------------------------------------------------------------------
+      - name: 归档与上传后端可执行产物 (All Platforms)
+        uses: actions/upload-artifact@v4
+        with:
+          name: jt-stress-tests-binaries
+          path: ${{ github.workspace }}/dist
+          retention-days: 30
+
+  # ============================================================================
+  # 阶段 3: 云原生生产环境 Docker 容器镜像构建与验证
+  # ============================================================================
+  package-docker:
+    name: Docker Container Image Build & Healthcheck
+    runs-on: ubuntu-latest
+    needs: quality-and-test
+
+    steps:
+      - name: 检出代码仓库
+        uses: actions/checkout@v4
+
+      - name: 配置 Docker Buildx 构建引擎
+        uses: docker/setup-buildx-action@v3
+
+      - name: 构建生产级 Docker 镜像
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: jt-stress-tests:ci-test
+
+      - name: 启动容器并执行健康检查端点验证 (/healthz)
+        run: |
+          echo "Starting Docker container in cloud-native daemon mode..."
+          CONTAINER_ID=$(docker run -d -p 8080:8080 jt-stress-tests:ci-test)
+          echo "Container started with ID: ${CONTAINER_ID}"
+
+          # 轮询等待容器健康检查就绪 (最多等待 30 秒)
+          HEALTHY=0
+          for i in {1..15}; do
+            sleep 2
+            STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/healthz || true)
+            if [ "$STATUS_CODE" -eq 200 ]; then
+              echo "Container health probe /healthz returned HTTP 200 OK!"
+              HEALTHY=1
+              break
+            else
+              echo "Waiting for container ready... (HTTP ${STATUS_CODE})"
+            fi
+          done
+
+          # 测试服务元数据接口 (/api/info)
+          echo "Testing metadata endpoint /api/info..."
+          curl -s http://127.0.0.1:8080/api/info | grep "JTStressTests" || { echo "Metadata endpoint check failed!"; docker logs "${CONTAINER_ID}"; exit 1; }
+
+          # 检查容器健康状态并优雅停机
+          docker stop "${CONTAINER_ID}"
+          docker rm "${CONTAINER_ID}"
+
+          if [ "$HEALTHY" -ne 1 ]; then
+            echo "ERROR: Docker container health check timed out!"
+            exit 1
+          fi
+
+          echo "Docker container build & healthcheck validation succeeded!"

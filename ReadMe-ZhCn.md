@@ -3,7 +3,8 @@
 [![.NET Version](https://img.shields.io/badge/.NET-8.0-blue.svg)](https://dotnet.microsoft.com/)
 [![Language](https://img.shields.io/badge/Language-C%23%2012-brightgreen.svg)](https://learn.microsoft.com/zh-cn/dotnet/csharp/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Unit Tests](https://img.shields.io/badge/Tests-74%20Passed-success.svg)](./TESTING.md)
+[![Unit Tests](https://img.shields.io/badge/Tests-81%20Passed-success.svg)](./TESTING.md)
+[![CI/CD Pipeline](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-blue.svg)](./CI_WORKFLOW.md)
 
 [English](./README.md) | [简体中文 (Chinese Version)](./ReadMe-ZhCn.md)
 
@@ -248,6 +249,7 @@ kubectl apply -k k8s/
 ├── run-tests.sh                       # 自动化单测与覆盖率执行脚本
 ├── README.md                          # 规范英文版文档
 ├── ReadMe-ZhCn.md                     # 规范中文版文档 (当前文件)
+├── CI_WORKFLOW.md                     # CI/CD 自动化工作流配置与产物管理说明文档
 ├── TESTING.md                         # 单元测试规范与覆盖率详细指南
 ├── REFACTORING.md                     # 系统重构架构、设计模式与接口定义规范
 │

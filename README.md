@@ -3,7 +3,8 @@
 [![.NET Version](https://img.shields.io/badge/.NET-8.0-blue.svg)](https://dotnet.microsoft.com/)
 [![Language](https://img.shields.io/badge/Language-C%23%2012-brightgreen.svg)](https://learn.microsoft.com/en-us/dotnet/csharp/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Unit Tests](https://img.shields.io/badge/Tests-74%20Passed-success.svg)](./TESTING.md)
+[![Unit Tests](https://img.shields.io/badge/Tests-81%20Passed-success.svg)](./TESTING.md)
+[![CI/CD Pipeline](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-blue.svg)](./CI_WORKFLOW.md)
 
 [English](./README.md) | [简体中文 (Chinese Version)](./ReadMe-ZhCn.md)
 
@@ -248,6 +249,7 @@ The project is structured according to SOLID principles, decoupling concerns int
 ├── run-tests.sh                       # Automated test & code coverage execution script
 ├── README.md                          # Standard English documentation (Current file)
 ├── ReadMe-ZhCn.md                     # Standard Simplified Chinese documentation
+├── CI_WORKFLOW.md                     # CI/CD workflow specification, management rules & build paths
 ├── TESTING.md                         # Unit testing specifications & coverage report guide
 ├── REFACTORING.md                     # Architecture refactoring, interface contracts & design patterns
 │
