@@ -105,6 +105,25 @@ public sealed class RefactoredArchitectureTests
     }
 
     /// <summary>
+    /// 验证 HtmlResultExporter 策略实现类正确实现 IResultExporter 契约并生成有效 HTML 字符串
+    /// </summary>
+    [TestMethod]
+    public void HtmlResultExporter_ImplementsIResultExporter()
+    {
+        IResultExporter exporter = HtmlResultExporter.Default;
+        Assert.AreEqual(".html", exporter.FileExtension);
+
+        var results = new List<RequestResult>
+        {
+            new RequestResult(1, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), 12.34, 200, true, null)
+        };
+
+        string html = exporter.Generate(results);
+        StringAssert.Contains(html, "<!DOCTYPE html>");
+        StringAssert.Contains(html, "JTStressTests 性能测试可视化分析报告");
+    }
+
+    /// <summary>
     /// 验证 ConsoleReportPrinter 策略实现类正确实现 IReportPrinter 契约并向输出流打印格式化报告
     /// </summary>
     [TestMethod]

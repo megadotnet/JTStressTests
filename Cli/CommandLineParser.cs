@@ -35,7 +35,8 @@ public sealed class CommandLineParser : ICommandLineParser
         Console.WriteLine("  --concurrency <int>   并发数 (默认 500)");
         Console.WriteLine("  --duration <int>      持续秒数 (默认 60)");
         Console.WriteLine("  --url <string>        目标 URL");
-        Console.WriteLine("  --output <string>     CSV 输出文件路径 (默认不导出)");
+        Console.WriteLine("  --output <string>     结果输出文件路径 (.csv 或 .html，默认不导出)");
+        Console.WriteLine("  --html <string>       HTML 可视化图表报告输出文件路径");
         Console.WriteLine("  --method <string>     HTTP 方法 (默认 POST)");
         Console.WriteLine("  --body <string>       请求体");
         Console.WriteLine("  --header <string>     请求头，格式 Name: Value，可重复");
@@ -152,6 +153,9 @@ public sealed class CommandLineParser : ICommandLineParser
                     break;
                 case "output":
                     options.OutputPath = value;
+                    break;
+                case "html":
+                    options.HtmlPath = value;
                     break;
                 case "method":
                     options.Method = value;

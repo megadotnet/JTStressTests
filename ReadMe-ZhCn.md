@@ -22,7 +22,7 @@
 - **平滑优雅终止与系统信号感知**：实时监听系统中断信号（`Ctrl+C` / SIGINT）与预设超时时间，平滑等待在途请求收尾（最长 10 秒宽限期），避免压测数据截断失真。
 - **多维度细粒度统计指标**：内置高精度连续线性插值算法计算延迟百分位数（P50、P90、P95、P99），实时统计 QPS 吞吐量、成功率、HTTP 响应状态码分布以及底层网络异常分类。
 - **灵活的层级化多环境配置合并**：原生支持 `appsettings.json` 基础配置、基于 `ASPNETCORE_ENVIRONMENT` 环境变量的环境特定配置（如 `appsettings.Staging.json`），以及命令行参数最高优先级覆盖。
-- **开箱即用的数据持久化导出**：支持通过 `--output` 参数将请求级耗时、状态码、时间戳与异常信息安全无损导出为 CSV 文件；采用策略模式设计，未来可无缝拓展 JSON、Parquet 等更多格式。
+- **开箱即用的数据持久化导出与可视化报告**：支持通过 `--output` 参数将请求级耗时、状态码、时间戳与异常信息导出为 CSV 文件或 HTML 文件；支持通过 `--html` 生成自包含、内嵌响应耗时与吞吐趋势走势图、分位数对比直方图、HTTP 状态码分布环形图及采样明细的交互式现代可视化报告。
 
 ---
 
@@ -229,7 +229,8 @@ kubectl apply -k k8s/
 | `--method` | 字符串 | `POST` | HTTP 请求方法，例如 `GET`, `POST`, `PUT`, `DELETE`, `PATCH` 等。 |
 | `--body` | 字符串 | 优先读取 `appsettings.json` | 请求载荷内容（支持 JSON 文本或表单序列化字符串）。 |
 | `--header` | 字符串 | 优先读取 `appsettings.json` | 自定义请求头，格式为 `Name: Value`，支持多次传入叠加。 |
-| `--output` | 字符串 | 空（不导出） | 压测全量明细结果导出的 CSV 文件目标路径。 |
+| `--output` | 字符串 | 空（不导出） | 压测全量明细结果导出的文件路径（支持 `.csv` 或 `.html`，自动识别）。 |
+| `--html` | 字符串 | 空（不导出） | 自动生成包含详细性能趋势图表与对比看板的自包含可视化 HTML 分析报告。 |
 | `--server` | 标志 | `false` | 以云原生 Web 服务守护进程模式运行（提供探活与 REST 接口）。 |
 | `--port` | 整数 | `8080` | Web 守护进程监听端口（亦可通过 `PORT` 环境变量注入）。 |
 | `--help`, `-h` | 标志 | `false` | 打印使用帮助和命令行参数说明。 |
@@ -283,7 +284,8 @@ kubectl apply -k k8s/
 │
 ├── Export/                            # 压测结果持久化导出模块
 │   ├── IResultExporter.cs             # 导出策略接口 (策略模式)
-│   └── CsvResultExporter.cs           # CSV 格式安全转义导出实现
+│   ├── CsvResultExporter.cs           # CSV 格式安全转义导出实现
+│   └── HtmlResultExporter.cs          # HTML 可视化图表分析报告导出实现
 │
 ├── Services/                          # [历史兼容垫片层]
 │   ├── CommandLineParser.cs           # 静态转发至 Cli 领域
@@ -291,7 +293,8 @@ kubectl apply -k k8s/
 │   ├── RequestBuilder.cs              # 静态转发至 Http 领域
 │   ├── StressTestEngine.cs            # 转发至 Engine 领域
 │   ├── StatisticsCalculator.cs        # 静态转发至 Statistics 领域
-│   └── CsvExporter.cs                 # 静态转发至 Export 领域
+│   ├── CsvExporter.cs                 # 静态转发至 Export 领域
+│   └── HtmlExporter.cs                # 静态转发至 Export 领域
 │
 ├── Models/                            # [历史模型兼容层]
 │   ├── AppConfig.cs                   # 隐式类型转换垫片

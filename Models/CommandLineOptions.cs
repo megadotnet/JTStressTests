@@ -25,9 +25,14 @@ public class CommandLineOptions
     public int Duration { get; set; } = 60;
 
     /// <summary>
-    /// 获取或设置 CSV 结果输出路径
+    /// 获取或设置 CSV / 报告结果输出路径
     /// </summary>
     public string OutputPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 获取或设置 HTML 可视化报告输出路径
+    /// </summary>
+    public string HtmlPath { get; set; } = string.Empty;
 
     /// <summary>
     /// 获取或设置 HTTP 方法，默认 POST
@@ -80,6 +85,7 @@ public class CommandLineOptions
             Concurrency = legacy.Concurrency,
             Duration = legacy.Duration,
             OutputPath = legacy.OutputPath,
+            HtmlPath = legacy.HtmlPath,
             Method = legacy.Method,
             Url = legacy.Url,
             Body = legacy.Body,
@@ -106,6 +112,7 @@ public class CommandLineOptions
             Concurrency = modern.Concurrency,
             Duration = modern.Duration,
             OutputPath = modern.OutputPath,
+            HtmlPath = modern.HtmlPath,
             Method = modern.Method,
             Url = modern.Url,
             Body = modern.Body,
